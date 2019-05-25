@@ -129,31 +129,6 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 		super.viewWillDisappear(animated)
 	}
 
-	override var shouldAutorotate: Bool {
-		// Disable autorotation of the interface when recording is in progress.
-		if let movieFileOutput = movieFileOutput {
-			return !movieFileOutput.isRecording
-		}
-		return true
-	}
-
-	override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
-		return .all
-	}
-
-	override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
-		super.viewWillTransition(to: size, with: coordinator)
-
-		if let videoPreviewLayerConnection = videoPreview.videoPreviewLayer.connection {
-			let deviceOrientation = UIDevice.current.orientation
-			guard let newVideoOrientation = AVCaptureVideoOrientation(deviceOrientation: deviceOrientation),
-				deviceOrientation.isPortrait || deviceOrientation.isLandscape else {
-					return
-			}
-
-			videoPreviewLayerConnection.videoOrientation = newVideoOrientation
-		}
-	}
 
 	// MARK: Session Management
 
@@ -213,24 +188,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 				self.videoDeviceInput = videoDeviceInput
 
 				DispatchQueue.main.async {
-					/*
-					Dispatch video streaming to the main queue because AVCaptureVideoPreviewLayer is the backing layer for PreviewView.
-					You can manipulate UIView only on the main thread.
-					Note: As an exception to the above rule, it is not necessary to serialize video orientation changes
-					on the AVCaptureVideoPreviewLayer’s connection with other session manipulation.
-
-					Use the status bar orientation as the initial video orientation. Subsequent orientation changes are
-					handled by CameraViewController.viewWillTransition(to:with:).
-					*/
-					let statusBarOrientation = UIApplication.shared.statusBarOrientation
-					var initialVideoOrientation: AVCaptureVideoOrientation = .portrait
-					if statusBarOrientation != .unknown {
-						if let videoOrientation = AVCaptureVideoOrientation(interfaceOrientation: statusBarOrientation) {
-							initialVideoOrientation = videoOrientation
-						}
-					}
-
-					self.videoPreview.videoPreviewLayer.connection?.videoOrientation = initialVideoOrientation
+					self.videoPreview.videoPreviewLayer.connection?.videoOrientation = .portrait
 				}
 			} else {
 				print("Couldn't add video device input to the session.")
@@ -842,28 +800,6 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 				self.cameraUnavailableLabel.isHidden = true
 			}
 			)
-		}
-	}
-}
-
-extension AVCaptureVideoOrientation {
-	init?(deviceOrientation: UIDeviceOrientation) {
-		switch deviceOrientation {
-		case .portrait: self = .portrait
-		case .portraitUpsideDown: self = .portraitUpsideDown
-		case .landscapeLeft: self = .landscapeRight
-		case .landscapeRight: self = .landscapeLeft
-		default: return nil
-		}
-	}
-
-	init?(interfaceOrientation: UIInterfaceOrientation) {
-		switch interfaceOrientation {
-		case .portrait: self = .portrait
-		case .portraitUpsideDown: self = .portraitUpsideDown
-		case .landscapeLeft: self = .landscapeLeft
-		case .landscapeRight: self = .landscapeRight
-		default: return nil
 		}
 	}
 }
