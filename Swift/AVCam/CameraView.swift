@@ -3,7 +3,7 @@ import UIKit
 import AVFoundation
 
 
-class VideoPreview: UIView {
+class CameraView: UIView {
 
 	// This view should have a AVCaptureVideoPreviewLayer as its main layer
 	override class var layerClass: AnyClass { return AVCaptureVideoPreviewLayer.self }

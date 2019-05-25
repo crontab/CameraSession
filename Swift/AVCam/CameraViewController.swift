@@ -145,7 +145,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 
 	@objc dynamic var videoDeviceInput: AVCaptureDeviceInput!
 
-	@IBOutlet private weak var videoPreview: VideoPreview!
+	@IBOutlet private weak var videoPreview: CameraView!
 
 	// Call this on the session queue.
 	/// - Tag: ConfigureSession
