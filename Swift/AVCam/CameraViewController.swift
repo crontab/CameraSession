@@ -74,7 +74,10 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 
 		sessionQueue.async {
 			switch self.setupResult {
-			case .success:
+			case .undefined:
+				preconditionFailure()
+
+			case .configured:
 				// Only setup observers and start the session running if setup succeeded.
 				self.addObservers()
 				self.session.startRunning()
@@ -101,11 +104,9 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 					self.present(alertController, animated: true, completion: nil)
 				}
 
-			case .configurationFailed:
+			case let .configurationFailed(message):
 				DispatchQueue.main.async {
-					let alertMsg = "Alert message when something goes wrong during capture session configuration"
-					let message = NSLocalizedString("Unable to capture media", comment: alertMsg)
-					let alertController = UIAlertController(title: "AVCam", message: message, preferredStyle: .alert)
+					let alertController = UIAlertController(title: "Cemare", message: message, preferredStyle: .alert)
 
 					alertController.addAction(UIAlertAction(title: NSLocalizedString("OK", comment: "Alert OK button"),
 															style: .cancel,
@@ -119,7 +120,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 
 	override func viewWillDisappear(_ animated: Bool) {
 		sessionQueue.async {
-			if self.setupResult == .success {
+			if self.setupResult == .configured {
 				self.session.stopRunning()
 				self.isSessionRunning = self.session.isRunning
 				self.removeObservers()
@@ -132,14 +133,15 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 
 	// MARK: Session Management
 
-	private enum SessionSetupResult {
-		case success
+	private enum SessionSetupResult: Equatable {
+		case undefined
+		case configured
 		case notAuthorized
-		case configurationFailed
+		case configurationFailed(message: String)
 	}
 	private var isSessionRunning = false
 
-	private var setupResult: SessionSetupResult = .success
+	private var setupResult: SessionSetupResult = .undefined
 
 	@objc dynamic var videoDeviceInput: AVCaptureDeviceInput!
 
@@ -148,7 +150,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 	// Call this on the session queue.
 	/// - Tag: ConfigureSession
 	private func configureSession() {
-		if setupResult != .success {
+		if setupResult != .undefined {
 			return
 		}
 
@@ -176,9 +178,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 				defaultVideoDevice = frontCameraDevice
 			}
 			guard let videoDevice = defaultVideoDevice else {
-				print("Default video device is unavailable.")
-				setupResult = .configurationFailed
-				session.commitConfiguration()
+				configurationFailed(message: "Default video device is unavailable.")
 				return
 			}
 			let videoDeviceInput = try AVCaptureDeviceInput(device: videoDevice)
@@ -191,15 +191,11 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 					self.videoPreview.videoPreviewLayer.connection?.videoOrientation = .portrait
 				}
 			} else {
-				print("Couldn't add video device input to the session.")
-				setupResult = .configurationFailed
-				session.commitConfiguration()
+				configurationFailed(message: "Couldn't add video device input to the session.")
 				return
 			}
 		} catch {
-			print("Couldn't create video device input: \(error)")
-			setupResult = .configurationFailed
-			session.commitConfiguration()
+			configurationFailed(message: "Couldn't create video device input: \(error)")
 			return
 		}
 
@@ -224,14 +220,19 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 			photoOutput.isHighResolutionCaptureEnabled = true
 
 		} else {
-			print("Could not add photo output to the session")
-			setupResult = .configurationFailed
-			session.commitConfiguration()
+			configurationFailed(message: "Could not add photo output to the session")
 			return
 		}
 
 		session.commitConfiguration()
 	}
+
+
+	private func configurationFailed(message: String) {
+		setupResult = .configurationFailed(message: message)
+		session.commitConfiguration()
+	}
+
 
 	@IBAction private func resumeInterruptedSession(_ resumeButton: UIButton) {
 		sessionQueue.async {
