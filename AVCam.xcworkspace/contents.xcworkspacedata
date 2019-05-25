@@ -4,7 +4,4 @@
    <FileRef
       location = "group:Swift/AVCam Swift.xcodeproj">
    </FileRef>
-   <FileRef
-      location = "group:Objective-C/AVCam Objective-C.xcodeproj">
-   </FileRef>
 </Workspace>
