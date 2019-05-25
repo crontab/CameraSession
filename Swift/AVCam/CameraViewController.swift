@@ -4,6 +4,11 @@ import AVFoundation
 import Photos
 
 class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelegate {
+
+	// To be moved to VideoPreview
+	private var session: AVCaptureSession { return videoPreview.session }
+	private var sessionQueue: DispatchQueue { return videoPreview.queue }
+
 	// MARK: View Controller Life Cycle
 
 	override func viewDidLoad() {
@@ -157,10 +162,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 		case notAuthorized
 		case configurationFailed
 	}
-	private let session = AVCaptureSession()
 	private var isSessionRunning = false
-
-	private let sessionQueue = DispatchQueue(label: "session queue") // Communicate with the session and other session objects on this queue.
 
 	private var setupResult: SessionSetupResult = .success
 
