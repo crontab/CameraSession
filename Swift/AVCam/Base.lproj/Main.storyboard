@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="14490.70" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="BYZ-38-t0r">
+    <device id="retina6_5" orientation="portrait">
+        <adaptation id="fullscreen"/>
+    </device>
     <dependencies>
+        <deployment identifier="iOS"/>
         <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14490.49"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
@@ -11,11 +15,11 @@
             <objects>
                 <viewController id="BYZ-38-t0r" userLabel="Camera View Controller" customClass="CameraViewController" customModule="AVCam" customModuleProvider="target" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="8bC-Xf-vdC">
-                        <rect key="frame" x="0.0" y="0.0" width="600" height="600"/>
+                        <rect key="frame" x="0.0" y="0.0" width="414" height="896"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="3eR-Rn-XpZ" userLabel="Preview" customClass="VideoPreview" customModule="AVCam" customModuleProvider="target">
-                                <rect key="frame" x="0.0" y="0.0" width="600" height="600"/>
+                                <rect key="frame" x="0.0" y="0.0" width="414" height="896"/>
                                 <color key="backgroundColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                 <gestureRecognizers/>
                                 <connections>
@@ -23,7 +27,7 @@
                                 </connections>
                             </view>
                             <segmentedControl opaque="NO" contentMode="scaleAspectFill" contentHorizontalAlignment="left" contentVerticalAlignment="top" segmentControlStyle="plain" selectedSegmentIndex="0" translatesAutoresizingMaskIntoConstraints="NO" id="FAC-co-10c" userLabel="Capture Mode">
-                                <rect key="frame" x="256" y="432" width="88" height="45"/>
+                                <rect key="frame" x="163" y="694" width="88" height="45"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="44" id="AHK-CJ-BHq"/>
                                     <constraint firstAttribute="width" secondItem="FAC-co-10c" secondAttribute="height" multiplier="80:40" id="T01-Tu-2SF"/>
@@ -36,25 +40,14 @@
                                     <action selector="toggleCaptureMode:" destination="BYZ-38-t0r" eventType="valueChanged" id="SKd-67-ZHh"/>
                                 </connections>
                             </segmentedControl>
-                            <label hidden="YES" opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Live" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="Pii-2r-R2l" userLabel="Capturing Live Photo">
-                                <rect key="frame" x="284.5" y="110" width="31" height="20.5"/>
-                                <fontDescription key="fontDescription" type="system" pointSize="17"/>
-                                <color key="textColor" red="1" green="1" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                                <nil key="highlightedColor"/>
-                                <userDefinedRuntimeAttributes>
-                                    <userDefinedRuntimeAttribute type="number" keyPath="layer.cornerRadius">
-                                        <integer key="value" value="4"/>
-                                    </userDefinedRuntimeAttribute>
-                                </userDefinedRuntimeAttributes>
-                            </label>
                             <label hidden="YES" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Camera Unavailable" textAlignment="center" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="zf0-db-esM" userLabel="Camera Unavailable">
-                                <rect key="frame" x="196" y="285.5" width="208" height="29"/>
+                                <rect key="frame" x="103" y="433.66666666666669" width="208" height="28.666666666666686"/>
                                 <fontDescription key="fontDescription" type="system" pointSize="24"/>
                                 <color key="textColor" red="1" green="1" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                 <nil key="highlightedColor"/>
                             </label>
                             <button hidden="YES" opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="FZr-Ip-7WL" userLabel="Resume">
-                                <rect key="frame" x="217.5" y="280.5" width="165" height="39"/>
+                                <rect key="frame" x="124.66666666666669" y="428.66666666666669" width="165" height="39"/>
                                 <fontDescription key="fontDescription" type="system" pointSize="24"/>
                                 <inset key="contentEdgeInsets" minX="10" minY="5" maxX="10" maxY="5"/>
                                 <state key="normal" title="Tap to resume">
@@ -70,7 +63,7 @@
                                 </connections>
                             </button>
                             <button opaque="NO" contentMode="scaleAspectFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="eRT-dK-6dM" userLabel="Record">
-                                <rect key="frame" x="30" y="500" width="60" height="60"/>
+                                <rect key="frame" x="30" y="762" width="60" height="60"/>
                                 <state key="normal" image="CaptureVideo">
                                     <color key="titleShadowColor" red="0.5" green="0.5" blue="0.5" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                 </state>
@@ -84,7 +77,7 @@
                                 </connections>
                             </button>
                             <button opaque="NO" contentMode="scaleAspectFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="uCj-6P-mHF" userLabel="Photo">
-                                <rect key="frame" x="270" y="500" width="60" height="60"/>
+                                <rect key="frame" x="177" y="762" width="60" height="60"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="60" id="NtC-UN-gTs"/>
                                     <constraint firstAttribute="width" constant="60" id="dxU-UP-4Ae"/>
@@ -102,7 +95,7 @@
                                 </connections>
                             </button>
                             <button opaque="NO" contentMode="scaleAspectFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="rUJ-G6-RPv" userLabel="Camera">
-                                <rect key="frame" x="510" y="500" width="60" height="60"/>
+                                <rect key="frame" x="324" y="762" width="60" height="60"/>
                                 <state key="normal" image="FlipCamera">
                                     <color key="titleShadowColor" red="0.5" green="0.5" blue="0.5" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                 </state>
@@ -113,38 +106,6 @@
                                 </userDefinedRuntimeAttributes>
                                 <connections>
                                     <action selector="changeCamera:" destination="BYZ-38-t0r" eventType="touchUpInside" id="3W0-h3-6fc"/>
-                                </connections>
-                            </button>
-                            <button opaque="NO" contentMode="scaleAspectFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="9i1-NX-Qxg" userLabel="Depth Data Delivery">
-                                <rect key="frame" x="275" y="40" width="50" height="50"/>
-                                <constraints>
-                                    <constraint firstAttribute="height" constant="50" id="DBZ-an-hCH"/>
-                                    <constraint firstAttribute="width" constant="50" id="txq-sa-50i"/>
-                                </constraints>
-                                <state key="normal" image="DepthON"/>
-                                <userDefinedRuntimeAttributes>
-                                    <userDefinedRuntimeAttribute type="number" keyPath="layer.cornerRadius">
-                                        <integer key="value" value="4"/>
-                                    </userDefinedRuntimeAttribute>
-                                </userDefinedRuntimeAttributes>
-                                <connections>
-                                    <action selector="toggleDepthDataDeliveryMode:" destination="BYZ-38-t0r" eventType="touchUpInside" id="iSb-YO-MyR"/>
-                                </connections>
-                            </button>
-                            <button opaque="NO" contentMode="scaleAspectFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="eI6-gV-W7d" userLabel="Live Photo Mode">
-                                <rect key="frame" x="60" y="40" width="50" height="50"/>
-                                <constraints>
-                                    <constraint firstAttribute="width" constant="50" id="2OH-VU-h0R"/>
-                                    <constraint firstAttribute="height" constant="50" id="XXa-hm-qsq"/>
-                                </constraints>
-                                <state key="normal" image="LivePhotoON"/>
-                                <userDefinedRuntimeAttributes>
-                                    <userDefinedRuntimeAttribute type="number" keyPath="layer.cornerRadius">
-                                        <integer key="value" value="4"/>
-                                    </userDefinedRuntimeAttribute>
-                                </userDefinedRuntimeAttributes>
-                                <connections>
-                                    <action selector="toggleLivePhotoMode:" destination="BYZ-38-t0r" eventType="touchUpInside" id="JqX-wJ-Xf1"/>
                                 </connections>
                             </button>
                         </subviews>
@@ -158,15 +119,8 @@
                             <constraint firstItem="uCj-6P-mHF" firstAttribute="top" secondItem="rUJ-G6-RPv" secondAttribute="top" id="NFm-e8-abT"/>
                             <constraint firstItem="nyU-fN-aJh" firstAttribute="bottom" secondItem="eRT-dK-6dM" secondAttribute="bottom" constant="20" id="Nti-4U-ZHN"/>
                             <constraint firstItem="FZr-Ip-7WL" firstAttribute="centerX" secondItem="nyU-fN-aJh" secondAttribute="centerX" id="OaZ-uO-vXY"/>
-                            <constraint firstItem="eI6-gV-W7d" firstAttribute="leading" secondItem="nyU-fN-aJh" secondAttribute="leading" constant="60" id="OfR-mz-BO3">
-                                <variation key="heightClass=compact" constant="30"/>
-                                <variation key="heightClass=regular" constant="30"/>
-                            </constraint>
                             <constraint firstItem="FAC-co-10c" firstAttribute="centerX" secondItem="uCj-6P-mHF" secondAttribute="centerX" id="Oow-A6-mDp"/>
-                            <constraint firstItem="eI6-gV-W7d" firstAttribute="centerX" secondItem="9i1-NX-Qxg" secondAttribute="centerX" id="Pm4-eO-sdY"/>
                             <constraint firstItem="zf0-db-esM" firstAttribute="centerY" secondItem="8bC-Xf-vdC" secondAttribute="centerY" id="Ris-mI-8lA"/>
-                            <constraint firstItem="9i1-NX-Qxg" firstAttribute="top" secondItem="eI6-gV-W7d" secondAttribute="top" id="SNY-VC-ohk"/>
-                            <constraint firstItem="Pii-2r-R2l" firstAttribute="centerX" secondItem="nyU-fN-aJh" secondAttribute="centerX" id="SXi-MU-H9D"/>
                             <constraint firstItem="3eR-Rn-XpZ" firstAttribute="leading" secondItem="nyU-fN-aJh" secondAttribute="leading" id="Sdw-MH-42e"/>
                             <constraint firstItem="uCj-6P-mHF" firstAttribute="leading" secondItem="FAC-co-10c" secondAttribute="trailing" constant="80" id="UzJ-4k-n11">
                                 <variation key="heightClass=compact" constant="20"/>
@@ -184,35 +138,17 @@
                             <constraint firstItem="nyU-fN-aJh" firstAttribute="bottom" secondItem="uCj-6P-mHF" secondAttribute="bottom" constant="40" id="eWs-co-Aaz"/>
                             <constraint firstItem="3eR-Rn-XpZ" firstAttribute="bottom" secondItem="8bC-Xf-vdC" secondAttribute="bottom" id="ea0-4F-Kd7"/>
                             <constraint firstItem="3eR-Rn-XpZ" firstAttribute="centerY" secondItem="8bC-Xf-vdC" secondAttribute="centerY" id="igk-MQ-CGt"/>
-                            <constraint firstItem="Pii-2r-R2l" firstAttribute="top" secondItem="nyU-fN-aJh" secondAttribute="top" constant="20" id="kgV-F4-efV"/>
                             <constraint firstItem="nyU-fN-aJh" firstAttribute="centerX" secondItem="uCj-6P-mHF" secondAttribute="centerX" id="m8a-cF-Rf0"/>
-                            <constraint firstItem="9i1-NX-Qxg" firstAttribute="centerX" secondItem="8bC-Xf-vdC" secondAttribute="centerX" id="ny4-fB-wQH"/>
                             <constraint firstItem="uCj-6P-mHF" firstAttribute="width" secondItem="rUJ-G6-RPv" secondAttribute="width" id="o8j-gw-35B"/>
-                            <constraint firstItem="9i1-NX-Qxg" firstAttribute="centerY" secondItem="8bC-Xf-vdC" secondAttribute="centerY" id="pd7-Dh-d2e"/>
-                            <constraint firstItem="9i1-NX-Qxg" firstAttribute="leading" secondItem="nyU-fN-aJh" secondAttribute="leading" constant="30" id="q6Y-ZM-hP8">
-                                <variation key="heightClass=compact" constant="20"/>
-                            </constraint>
-                            <constraint firstItem="9i1-NX-Qxg" firstAttribute="top" secondItem="8bC-Xf-vdC" secondAttribute="top" constant="40" id="qVc-EN-il5"/>
-                            <constraint firstItem="FAC-co-10c" firstAttribute="leading" relation="greaterThanOrEqual" secondItem="9i1-NX-Qxg" secondAttribute="trailing" constant="8" symbolic="YES" id="ri1-er-H3p"/>
                             <constraint firstItem="uCj-6P-mHF" firstAttribute="centerX" secondItem="eRT-dK-6dM" secondAttribute="centerX" id="rkp-su-C5H"/>
                             <constraint firstItem="uCj-6P-mHF" firstAttribute="width" secondItem="eRT-dK-6dM" secondAttribute="width" id="s8u-Y8-n27"/>
-                            <constraint firstItem="Pii-2r-R2l" firstAttribute="top" secondItem="9i1-NX-Qxg" secondAttribute="bottom" constant="20" id="sNQ-wG-QKR"/>
                             <constraint firstItem="FZr-Ip-7WL" firstAttribute="centerY" secondItem="8bC-Xf-vdC" secondAttribute="centerY" id="sTY-i6-czN"/>
-                            <constraint firstItem="nyU-fN-aJh" firstAttribute="bottom" secondItem="eI6-gV-W7d" secondAttribute="bottom" constant="30" id="vVo-dd-B0t">
-                                <variation key="heightClass=compact" constant="30"/>
-                            </constraint>
                         </constraints>
                         <viewLayoutGuide key="safeArea" id="nyU-fN-aJh"/>
                         <variation key="default">
                             <mask key="constraints">
                                 <exclude reference="Nti-4U-ZHN"/>
                                 <exclude reference="b0r-sh-cwd"/>
-                                <exclude reference="vVo-dd-B0t"/>
-                                <exclude reference="Pm4-eO-sdY"/>
-                                <exclude reference="pd7-Dh-d2e"/>
-                                <exclude reference="q6Y-ZM-hP8"/>
-                                <exclude reference="kgV-F4-efV"/>
-                                <exclude reference="ri1-er-H3p"/>
                                 <exclude reference="ME7-or-Zz6"/>
                                 <exclude reference="UzJ-4k-n11"/>
                                 <exclude reference="ZGJ-Ly-Ppb"/>
@@ -228,18 +164,7 @@
                                 <include reference="b0r-sh-cwd"/>
                                 <exclude reference="eWs-co-Aaz"/>
                                 <exclude reference="m8a-cF-Rf0"/>
-                                <include reference="vVo-dd-B0t"/>
-                                <exclude reference="OfR-mz-BO3"/>
-                                <include reference="Pm4-eO-sdY"/>
-                                <exclude reference="SNY-VC-ohk"/>
-                                <exclude reference="ny4-fB-wQH"/>
-                                <include reference="pd7-Dh-d2e"/>
-                                <include reference="q6Y-ZM-hP8"/>
-                                <exclude reference="qVc-EN-il5"/>
-                                <include reference="kgV-F4-efV"/>
-                                <exclude reference="sNQ-wG-QKR"/>
                                 <exclude reference="Oow-A6-mDp"/>
-                                <include reference="ri1-er-H3p"/>
                                 <exclude reference="cCX-ki-9gT"/>
                                 <include reference="ME7-or-Zz6"/>
                                 <exclude reference="NFm-e8-abT"/>
@@ -259,9 +184,6 @@
                         <outlet property="cameraButton" destination="rUJ-G6-RPv" id="dAV-WS-N1p"/>
                         <outlet property="cameraUnavailableLabel" destination="zf0-db-esM" id="P9W-lb-Pb8"/>
                         <outlet property="captureModeControl" destination="FAC-co-10c" id="KXj-wg-BvS"/>
-                        <outlet property="capturingLivePhotoLabel" destination="Pii-2r-R2l" id="JAa-4l-5SD"/>
-                        <outlet property="depthDataDeliveryButton" destination="9i1-NX-Qxg" id="The-P3-y3W"/>
-                        <outlet property="livePhotoModeButton" destination="eI6-gV-W7d" id="r9f-cN-YSH"/>
                         <outlet property="photoButton" destination="uCj-6P-mHF" id="Ha8-ua-hxy"/>
                         <outlet property="recordButton" destination="eRT-dK-6dM" id="iqk-en-NsW"/>
                         <outlet property="resumeButton" destination="FZr-Ip-7WL" id="tX5-Sx-rQK"/>
@@ -281,9 +203,7 @@
     <resources>
         <image name="CapturePhoto" width="150" height="150"/>
         <image name="CaptureVideo" width="150" height="150"/>
-        <image name="DepthON" width="150" height="150"/>
         <image name="FlipCamera" width="150" height="150"/>
-        <image name="LivePhotoON" width="150" height="150"/>
         <image name="MovieSelector" width="72" height="72"/>
         <image name="PhotoSelector" width="72" height="72"/>
     </resources>

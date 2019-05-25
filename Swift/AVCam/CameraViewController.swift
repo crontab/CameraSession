@@ -13,8 +13,6 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 		cameraButton.isEnabled = false
 		recordButton.isEnabled = false
 		photoButton.isEnabled = false
-		livePhotoModeButton.isEnabled = false
-		depthDataDeliveryButton.isEnabled = false
 		captureModeControl.isEnabled = false
 
 		// Set up the video preview view.
@@ -264,10 +262,6 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 			session.addOutput(photoOutput)
 
 			photoOutput.isHighResolutionCaptureEnabled = true
-			photoOutput.isLivePhotoCaptureEnabled = photoOutput.isLivePhotoCaptureSupported
-			photoOutput.isDepthDataDeliveryEnabled = photoOutput.isDepthDataDeliverySupported
-			livePhotoMode = photoOutput.isLivePhotoCaptureSupported ? .on : .off
-			depthDataDeliveryMode = photoOutput.isDepthDataDeliverySupported ? .on : .off
 
 		} else {
 			print("Could not add photo output to the session")
@@ -332,28 +326,9 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 
 				self.movieFileOutput = nil
 
-				if self.photoOutput.isLivePhotoCaptureSupported {
-					self.photoOutput.isLivePhotoCaptureEnabled = true
-
-					DispatchQueue.main.async {
-						self.livePhotoModeButton.isEnabled = true
-						self.livePhotoModeButton.isHidden = false
-					}
-				}
-				if self.photoOutput.isDepthDataDeliverySupported {
-					self.photoOutput.isDepthDataDeliveryEnabled = true
-
-					DispatchQueue.main.async {
-						self.depthDataDeliveryButton.isHidden = false
-						self.depthDataDeliveryButton.isEnabled = true
-					}
-				}
-
 				self.session.commitConfiguration()
 			}
 		} else if captureModeControl.selectedSegmentIndex == CaptureMode.movie.rawValue {
-			livePhotoModeButton.isHidden = true
-			depthDataDeliveryButton.isHidden = true
 
 			sessionQueue.async {
 				let movieFileOutput = AVCaptureMovieFileOutput()
@@ -389,15 +364,14 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 
 	@IBOutlet private weak var cameraUnavailableLabel: UILabel!
 
-	private let videoDeviceDiscoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .builtInDualCamera, .builtInTrueDepthCamera],
-																			   mediaType: .video, position: .unspecified)
+	// TODO: add .builtinTelelensCamera discovery
+	private let videoDeviceDiscoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .builtInDualCamera, .builtInTrueDepthCamera], mediaType: .video, position: .unspecified)
 
 	/// - Tag: ChangeCamera
 	@IBAction private func changeCamera(_ cameraButton: UIButton) {
 		cameraButton.isEnabled = false
 		recordButton.isEnabled = false
 		photoButton.isEnabled = false
-		livePhotoModeButton.isEnabled = false
 		captureModeControl.isEnabled = false
 
 		sessionQueue.async {
@@ -453,15 +427,6 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 						}
 					}
 
-					/*
-					Set Live Photo capture and depth data delivery if it is supported. When changing cameras, the
-					`livePhotoCaptureEnabled and depthDataDeliveryEnabled` properties of the AVCapturePhotoOutput gets set to NO when
-					a video device is disconnected from the session. After the new video device is
-					added to the session, re-enable them on the AVCapturePhotoOutput if it is supported.
-					*/
-					self.photoOutput.isLivePhotoCaptureEnabled = self.photoOutput.isLivePhotoCaptureSupported
-					self.photoOutput.isDepthDataDeliveryEnabled = self.photoOutput.isDepthDataDeliverySupported
-
 					self.session.commitConfiguration()
 				} catch {
 					print("Error occurred while creating video device input: \(error)")
@@ -472,10 +437,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 				self.cameraButton.isEnabled = true
 				self.recordButton.isEnabled = self.movieFileOutput != nil
 				self.photoButton.isEnabled = true
-				self.livePhotoModeButton.isEnabled = true
 				self.captureModeControl.isEnabled = true
-				self.depthDataDeliveryButton.isEnabled = self.photoOutput.isDepthDataDeliveryEnabled
-				self.depthDataDeliveryButton.isHidden = !self.photoOutput.isDepthDataDeliverySupported
 			}
 		}
 	}
@@ -553,14 +515,6 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 			if !photoSettings.__availablePreviewPhotoPixelFormatTypes.isEmpty {
 				photoSettings.previewPhotoFormat = [kCVPixelBufferPixelFormatTypeKey as String: photoSettings.__availablePreviewPhotoPixelFormatTypes.first!]
 			}
-			if self.livePhotoMode == .on && self.photoOutput.isLivePhotoCaptureSupported { // Live Photo capture is not supported in movie mode.
-				let livePhotoMovieFileName = NSUUID().uuidString
-				let livePhotoMovieFilePath = (NSTemporaryDirectory() as NSString).appendingPathComponent((livePhotoMovieFileName as NSString).appendingPathExtension("mov")!)
-				photoSettings.livePhotoMovieFileURL = URL(fileURLWithPath: livePhotoMovieFilePath)
-			}
-
-			photoSettings.isDepthDataDeliveryEnabled = (self.depthDataDeliveryMode == .on
-				&& self.photoOutput.isDepthDataDeliveryEnabled)
 
 			let photoCaptureProcessor = PhotoCaptureProcessor(with: photoSettings, willCapturePhotoAnimation: {
 				// Flash the screen to signal that AVCam took a photo.
@@ -568,25 +522,6 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 					self.videoPreview.videoPreviewLayer.opacity = 0
 					UIView.animate(withDuration: 0.25) {
 						self.videoPreview.videoPreviewLayer.opacity = 1
-					}
-				}
-			}, livePhotoCaptureHandler: { capturing in
-				self.sessionQueue.async {
-					if capturing {
-						self.inProgressLivePhotoCapturesCount += 1
-					} else {
-						self.inProgressLivePhotoCapturesCount -= 1
-					}
-
-					let inProgressLivePhotoCapturesCount = self.inProgressLivePhotoCapturesCount
-					DispatchQueue.main.async {
-						if inProgressLivePhotoCapturesCount > 0 {
-							self.capturingLivePhotoLabel.isHidden = false
-						} else if inProgressLivePhotoCapturesCount == 0 {
-							self.capturingLivePhotoLabel.isHidden = true
-						} else {
-							print("Error: In progress Live Photo capture count is less than 0.")
-						}
 					}
 				}
 			}, completionHandler: { photoCaptureProcessor in
@@ -602,58 +537,6 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 			self.photoOutput.capturePhoto(with: photoSettings, delegate: photoCaptureProcessor)
 		}
 	}
-
-	private enum LivePhotoMode {
-		case on
-		case off
-	}
-
-	private enum DepthDataDeliveryMode {
-		case on
-		case off
-	}
-
-	private var livePhotoMode: LivePhotoMode = .off
-
-	@IBOutlet private weak var livePhotoModeButton: UIButton!
-
-	@IBAction private func toggleLivePhotoMode(_ livePhotoModeButton: UIButton) {
-		sessionQueue.async {
-			self.livePhotoMode = (self.livePhotoMode == .on) ? .off : .on
-			let livePhotoMode = self.livePhotoMode
-
-			DispatchQueue.main.async {
-				if livePhotoMode == .on {
-					self.livePhotoModeButton.setImage(#imageLiteral(resourceName: "LivePhotoON"), for: [])
-				} else {
-					self.livePhotoModeButton.setImage(#imageLiteral(resourceName: "LivePhotoOFF"), for: [])
-				}
-			}
-		}
-	}
-
-	private var depthDataDeliveryMode: DepthDataDeliveryMode = .off
-
-	@IBOutlet private weak var depthDataDeliveryButton: UIButton!
-
-	@IBAction func toggleDepthDataDeliveryMode(_ depthDataDeliveryButton: UIButton) {
-		sessionQueue.async {
-			self.depthDataDeliveryMode = (self.depthDataDeliveryMode == .on) ? .off : .on
-			let depthDataDeliveryMode = self.depthDataDeliveryMode
-
-			DispatchQueue.main.async {
-				if depthDataDeliveryMode == .on {
-					self.depthDataDeliveryButton.setImage(#imageLiteral(resourceName: "DepthON"), for: [])
-				} else {
-					self.depthDataDeliveryButton.setImage(#imageLiteral(resourceName: "DepthOFF"), for: [])
-				}
-			}
-		}
-	}
-
-	private var inProgressLivePhotoCapturesCount = 0
-
-	@IBOutlet var capturingLivePhotoLabel: UILabel!
 
 	// MARK: Recording Movies
 
@@ -791,10 +674,6 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 	private func addObservers() {
 		let keyValueObservation = session.observe(\.isRunning, options: .new) { _, change in
 			guard let isSessionRunning = change.newValue else { return }
-			let isLivePhotoCaptureSupported = self.photoOutput.isLivePhotoCaptureSupported
-			let isLivePhotoCaptureEnabled = self.photoOutput.isLivePhotoCaptureEnabled
-			let isDepthDeliveryDataSupported = self.photoOutput.isDepthDataDeliverySupported
-			let isDepthDeliveryDataEnabled = self.photoOutput.isDepthDataDeliveryEnabled
 
 			DispatchQueue.main.async {
 				// Only enable the ability to change camera if the device has more than one camera.
@@ -802,10 +681,6 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 				self.recordButton.isEnabled = isSessionRunning && self.movieFileOutput != nil
 				self.photoButton.isEnabled = isSessionRunning
 				self.captureModeControl.isEnabled = isSessionRunning
-				self.livePhotoModeButton.isEnabled = isSessionRunning && isLivePhotoCaptureEnabled
-				self.livePhotoModeButton.isHidden = !(isSessionRunning && isLivePhotoCaptureSupported)
-				self.depthDataDeliveryButton.isEnabled = isSessionRunning && isDepthDeliveryDataEnabled
-				self.depthDataDeliveryButton.isHidden = !(isSessionRunning && isDepthDeliveryDataSupported)
 			}
 		}
 		keyValueObservations.append(keyValueObservation)

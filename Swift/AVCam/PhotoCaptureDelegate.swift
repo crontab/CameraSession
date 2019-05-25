@@ -7,37 +7,21 @@ class PhotoCaptureProcessor: NSObject {
 
 	private let willCapturePhotoAnimation: () -> Void
 
-	private let livePhotoCaptureHandler: (Bool) -> Void
-
 	lazy var context = CIContext()
 
 	private let completionHandler: (PhotoCaptureProcessor) -> Void
 
 	private var photoData: Data?
 
-	private var livePhotoCompanionMovieURL: URL?
-
 	init(with requestedPhotoSettings: AVCapturePhotoSettings,
 		 willCapturePhotoAnimation: @escaping () -> Void,
-		 livePhotoCaptureHandler: @escaping (Bool) -> Void,
 		 completionHandler: @escaping (PhotoCaptureProcessor) -> Void) {
 		self.requestedPhotoSettings = requestedPhotoSettings
 		self.willCapturePhotoAnimation = willCapturePhotoAnimation
-		self.livePhotoCaptureHandler = livePhotoCaptureHandler
 		self.completionHandler = completionHandler
 	}
 
 	private func didFinish() {
-		if let livePhotoCompanionMoviePath = livePhotoCompanionMovieURL?.path {
-			if FileManager.default.fileExists(atPath: livePhotoCompanionMoviePath) {
-				do {
-					try FileManager.default.removeItem(atPath: livePhotoCompanionMoviePath)
-				} catch {
-					print("Could not remove file at url: \(livePhotoCompanionMoviePath)")
-				}
-			}
-		}
-
 		completionHandler(self)
 	}
 
@@ -47,13 +31,6 @@ extension PhotoCaptureProcessor: AVCapturePhotoCaptureDelegate {
 	/*
 	This extension includes all the delegate callbacks for AVCapturePhotoCaptureDelegate protocol.
 	*/
-
-	/// - Tag: WillBeginCapture
-	func photoOutput(_ output: AVCapturePhotoOutput, willBeginCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings) {
-		if resolvedSettings.livePhotoMovieDimensions.width > 0 && resolvedSettings.livePhotoMovieDimensions.height > 0 {
-			livePhotoCaptureHandler(true)
-		}
-	}
 
 	/// - Tag: WillCapturePhoto
 	func photoOutput(_ output: AVCapturePhotoOutput, willCapturePhotoFor resolvedSettings: AVCaptureResolvedPhotoSettings) {
@@ -68,20 +45,6 @@ extension PhotoCaptureProcessor: AVCapturePhotoCaptureDelegate {
 		} else {
 			photoData = photo.fileDataRepresentation()
 		}
-	}
-
-	/// - Tag: DidFinishRecordingLive
-	func photoOutput(_ output: AVCapturePhotoOutput, didFinishRecordingLivePhotoMovieForEventualFileAt outputFileURL: URL, resolvedSettings: AVCaptureResolvedPhotoSettings) {
-		livePhotoCaptureHandler(false)
-	}
-
-	/// - Tag: DidFinishProcessingLive
-	func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingLivePhotoToMovieFileAt outputFileURL: URL, duration: CMTime, photoDisplayTime: CMTime, resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {
-		if error != nil {
-			print("Error processing Live Photo companion movie: \(String(describing: error))")
-			return
-		}
-		livePhotoCompanionMovieURL = outputFileURL
 	}
 
 	/// - Tag: DidFinishCapture
@@ -105,14 +68,6 @@ extension PhotoCaptureProcessor: AVCapturePhotoCaptureDelegate {
 					let creationRequest = PHAssetCreationRequest.forAsset()
 					options.uniformTypeIdentifier = self.requestedPhotoSettings.processedFileType.map { $0.rawValue }
 					creationRequest.addResource(with: .photo, data: photoData, options: options)
-
-					if let livePhotoCompanionMovieURL = self.livePhotoCompanionMovieURL {
-						let livePhotoCompanionMovieFileOptions = PHAssetResourceCreationOptions()
-						livePhotoCompanionMovieFileOptions.shouldMoveFile = true
-						creationRequest.addResource(with: .pairedVideo,
-													fileURL: livePhotoCompanionMovieURL,
-													options: livePhotoCompanionMovieFileOptions)
-					}
 
 				}, completionHandler: { _, error in
 					if let error = error {
