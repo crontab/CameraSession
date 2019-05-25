@@ -433,7 +433,10 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
             case .back:
                 preferredPosition = .front
                 preferredDeviceType = .builtInTrueDepthCamera
-            }
+
+			@unknown default:
+				fatalError()
+			}
             let devices = self.videoDeviceDiscoverySession.devices
             var newVideoDevice: AVCaptureDevice? = nil
             
