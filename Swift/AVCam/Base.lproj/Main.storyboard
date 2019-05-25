@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="14313.18" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="BYZ-38-t0r">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="14490.70" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="BYZ-38-t0r">
     <device id="retina6_5" orientation="portrait">
         <adaptation id="fullscreen"/>
     </device>
     <dependencies>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14283.14"/>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14490.49"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
@@ -118,22 +119,6 @@
                                     <action selector="changeCamera:" destination="BYZ-38-t0r" eventType="touchUpInside" id="3W0-h3-6fc"/>
                                 </connections>
                             </button>
-                            <button opaque="NO" contentMode="scaleAspectFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="k2e-iy-hZx" userLabel="Portrait Effects Matte Delivery">
-                                <rect key="frame" x="334" y="40" width="50" height="50"/>
-                                <constraints>
-                                    <constraint firstAttribute="width" constant="50" id="15L-jw-KI1"/>
-                                    <constraint firstAttribute="height" constant="50" id="Rhs-tx-wuW"/>
-                                </constraints>
-                                <state key="normal" image="PortraitMatteON"/>
-                                <userDefinedRuntimeAttributes>
-                                    <userDefinedRuntimeAttribute type="number" keyPath="layer.cornerRadius">
-                                        <integer key="value" value="4"/>
-                                    </userDefinedRuntimeAttribute>
-                                </userDefinedRuntimeAttributes>
-                                <connections>
-                                    <action selector="togglePortraitEffectsMatteDeliveryMode:" destination="BYZ-38-t0r" eventType="touchUpInside" id="0gF-gc-5Pe"/>
-                                </connections>
-                            </button>
                             <button opaque="NO" contentMode="scaleAspectFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="9i1-NX-Qxg" userLabel="Depth Data Delivery">
                                 <rect key="frame" x="182" y="40" width="50" height="50"/>
                                 <constraints>
@@ -169,14 +154,9 @@
                         </subviews>
                         <color key="backgroundColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                         <constraints>
-                            <constraint firstItem="k2e-iy-hZx" firstAttribute="top" secondItem="9i1-NX-Qxg" secondAttribute="top" id="6s5-Ib-dPR"/>
                             <constraint firstItem="rUJ-G6-RPv" firstAttribute="centerX" secondItem="eRT-dK-6dM" secondAttribute="centerX" id="7cz-Yw-dIv"/>
                             <constraint firstItem="3eR-Rn-XpZ" firstAttribute="trailing" secondItem="nyU-fN-aJh" secondAttribute="trailing" id="8ud-UI-Sfr"/>
-                            <constraint firstItem="nyU-fN-aJh" firstAttribute="trailing" secondItem="k2e-iy-hZx" secondAttribute="trailing" constant="60" id="A9L-Xb-0Jl">
-                                <variation key="heightClass=regular" constant="30"/>
-                            </constraint>
                             <constraint firstItem="uCj-6P-mHF" firstAttribute="height" secondItem="eRT-dK-6dM" secondAttribute="height" id="AEV-ew-H4g"/>
-                            <constraint firstItem="k2e-iy-hZx" firstAttribute="centerX" secondItem="9i1-NX-Qxg" secondAttribute="centerX" id="EMU-8C-9iA"/>
                             <constraint firstItem="nyU-fN-aJh" firstAttribute="trailing" secondItem="rUJ-G6-RPv" secondAttribute="trailing" constant="30" id="J70-ky-10v"/>
                             <constraint firstItem="uCj-6P-mHF" firstAttribute="centerY" secondItem="FAC-co-10c" secondAttribute="centerY" id="ME7-or-Zz6"/>
                             <constraint firstItem="uCj-6P-mHF" firstAttribute="top" secondItem="rUJ-G6-RPv" secondAttribute="top" id="NFm-e8-abT"/>
@@ -202,9 +182,6 @@
                             <constraint firstItem="uCj-6P-mHF" firstAttribute="centerY" secondItem="8bC-Xf-vdC" secondAttribute="centerY" id="ZGJ-Ly-Ppb"/>
                             <constraint firstItem="uCj-6P-mHF" firstAttribute="height" secondItem="rUJ-G6-RPv" secondAttribute="height" id="aQi-F7-E2b"/>
                             <constraint firstItem="uCj-6P-mHF" firstAttribute="top" secondItem="FAC-co-10c" secondAttribute="bottom" constant="24" id="aSR-Je-0lW"/>
-                            <constraint firstItem="k2e-iy-hZx" firstAttribute="top" secondItem="nyU-fN-aJh" secondAttribute="top" constant="30" id="aqZ-EO-3Fl">
-                                <variation key="heightClass=compact" constant="30"/>
-                            </constraint>
                             <constraint firstItem="nyU-fN-aJh" firstAttribute="trailing" secondItem="uCj-6P-mHF" secondAttribute="trailing" constant="40" id="b0r-sh-cwd"/>
                             <constraint firstItem="uCj-6P-mHF" firstAttribute="top" secondItem="eRT-dK-6dM" secondAttribute="top" id="bQd-ro-0Hw"/>
                             <constraint firstItem="eRT-dK-6dM" firstAttribute="leading" secondItem="nyU-fN-aJh" secondAttribute="leading" constant="30" id="cCX-ki-9gT"/>
@@ -212,7 +189,6 @@
                             <constraint firstItem="3eR-Rn-XpZ" firstAttribute="bottom" secondItem="8bC-Xf-vdC" secondAttribute="bottom" id="ea0-4F-Kd7"/>
                             <constraint firstItem="3eR-Rn-XpZ" firstAttribute="centerY" secondItem="8bC-Xf-vdC" secondAttribute="centerY" id="igk-MQ-CGt"/>
                             <constraint firstItem="Pii-2r-R2l" firstAttribute="top" secondItem="nyU-fN-aJh" secondAttribute="top" constant="20" id="kgV-F4-efV"/>
-                            <constraint firstItem="k2e-iy-hZx" firstAttribute="centerY" secondItem="8bC-Xf-vdC" secondAttribute="centerY" id="lKh-gu-ie2"/>
                             <constraint firstItem="nyU-fN-aJh" firstAttribute="centerX" secondItem="uCj-6P-mHF" secondAttribute="centerX" id="m8a-cF-Rf0"/>
                             <constraint firstItem="9i1-NX-Qxg" firstAttribute="centerX" secondItem="8bC-Xf-vdC" secondAttribute="centerX" id="ny4-fB-wQH"/>
                             <constraint firstItem="uCj-6P-mHF" firstAttribute="width" secondItem="rUJ-G6-RPv" secondAttribute="width" id="o8j-gw-35B"/>
@@ -229,7 +205,6 @@
                             <constraint firstItem="nyU-fN-aJh" firstAttribute="bottom" secondItem="eI6-gV-W7d" secondAttribute="bottom" constant="30" id="vVo-dd-B0t">
                                 <variation key="heightClass=compact" constant="30"/>
                             </constraint>
-                            <constraint firstItem="k2e-iy-hZx" firstAttribute="centerX" secondItem="8bC-Xf-vdC" secondAttribute="centerX" id="zDr-9x-9rD"/>
                         </constraints>
                         <viewLayoutGuide key="safeArea" id="nyU-fN-aJh"/>
                         <variation key="default">
@@ -241,10 +216,6 @@
                                 <exclude reference="pd7-Dh-d2e"/>
                                 <exclude reference="q6Y-ZM-hP8"/>
                                 <exclude reference="kgV-F4-efV"/>
-                                <exclude reference="EMU-8C-9iA"/>
-                                <exclude reference="aqZ-EO-3Fl"/>
-                                <exclude reference="lKh-gu-ie2"/>
-                                <exclude reference="zDr-9x-9rD"/>
                                 <exclude reference="ri1-er-H3p"/>
                                 <exclude reference="ME7-or-Zz6"/>
                                 <exclude reference="UzJ-4k-n11"/>
@@ -256,7 +227,6 @@
                         </variation>
                         <variation key="heightClass=compact">
                             <mask key="constraints">
-                                <exclude reference="A9L-Xb-0Jl"/>
                                 <exclude reference="J70-ky-10v"/>
                                 <include reference="Nti-4U-ZHN"/>
                                 <include reference="b0r-sh-cwd"/>
@@ -272,11 +242,6 @@
                                 <exclude reference="qVc-EN-il5"/>
                                 <include reference="kgV-F4-efV"/>
                                 <exclude reference="sNQ-wG-QKR"/>
-                                <exclude reference="6s5-Ib-dPR"/>
-                                <include reference="EMU-8C-9iA"/>
-                                <include reference="aqZ-EO-3Fl"/>
-                                <exclude reference="lKh-gu-ie2"/>
-                                <exclude reference="zDr-9x-9rD"/>
                                 <exclude reference="Oow-A6-mDp"/>
                                 <include reference="ri1-er-H3p"/>
                                 <exclude reference="cCX-ki-9gT"/>
@@ -302,7 +267,6 @@
                         <outlet property="depthDataDeliveryButton" destination="9i1-NX-Qxg" id="The-P3-y3W"/>
                         <outlet property="livePhotoModeButton" destination="eI6-gV-W7d" id="r9f-cN-YSH"/>
                         <outlet property="photoButton" destination="uCj-6P-mHF" id="Ha8-ua-hxy"/>
-                        <outlet property="portraitEffectsMatteDeliveryButton" destination="k2e-iy-hZx" id="bwb-5t-x2l"/>
                         <outlet property="previewView" destination="3eR-Rn-XpZ" id="e7I-nu-L6j"/>
                         <outlet property="recordButton" destination="eRT-dK-6dM" id="iqk-en-NsW"/>
                         <outlet property="resumeButton" destination="FZr-Ip-7WL" id="tX5-Sx-rQK"/>
@@ -326,7 +290,6 @@
         <image name="LivePhotoON" width="150" height="150"/>
         <image name="MovieSelector" width="72" height="72"/>
         <image name="PhotoSelector" width="72" height="72"/>
-        <image name="PortraitMatteON" width="150" height="150"/>
     </resources>
     <color key="tintColor" red="1" green="1" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
 </document>

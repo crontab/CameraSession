@@ -21,7 +21,6 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
         photoButton.isEnabled = false
         livePhotoModeButton.isEnabled = false
         depthDataDeliveryButton.isEnabled = false
-        portraitEffectsMatteDeliveryButton.isEnabled = false
         captureModeControl.isEnabled = false
         
         // Set up the video preview view.
@@ -273,11 +272,9 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
             photoOutput.isHighResolutionCaptureEnabled = true
             photoOutput.isLivePhotoCaptureEnabled = photoOutput.isLivePhotoCaptureSupported
             photoOutput.isDepthDataDeliveryEnabled = photoOutput.isDepthDataDeliverySupported
-            photoOutput.isPortraitEffectsMatteDeliveryEnabled = photoOutput.isPortraitEffectsMatteDeliverySupported
             livePhotoMode = photoOutput.isLivePhotoCaptureSupported ? .on : .off
             depthDataDeliveryMode = photoOutput.isDepthDataDeliverySupported ? .on : .off
-            portraitEffectsMatteDeliveryMode = photoOutput.isPortraitEffectsMatteDeliverySupported ? .on : .off
-            
+
         } else {
             print("Could not add photo output to the session")
             setupResult = .configurationFailed
@@ -358,21 +355,12 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
                     }
                 }
                 
-                if self.photoOutput.isPortraitEffectsMatteDeliverySupported {
-                    self.photoOutput.isPortraitEffectsMatteDeliveryEnabled = true
-                    
-                    DispatchQueue.main.async {
-                        self.portraitEffectsMatteDeliveryButton.isHidden = false
-                        self.portraitEffectsMatteDeliveryButton.isEnabled = true
-                    }
-                }
                 self.session.commitConfiguration()
             }
         } else if captureModeControl.selectedSegmentIndex == CaptureMode.movie.rawValue {
             livePhotoModeButton.isHidden = true
             depthDataDeliveryButton.isHidden = true
-            portraitEffectsMatteDeliveryButton.isHidden = true
-            
+
             sessionQueue.async {
                 let movieFileOutput = AVCaptureMovieFileOutput()
                 
@@ -479,8 +467,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
                      */
                     self.photoOutput.isLivePhotoCaptureEnabled = self.photoOutput.isLivePhotoCaptureSupported
                     self.photoOutput.isDepthDataDeliveryEnabled = self.photoOutput.isDepthDataDeliverySupported
-                    self.photoOutput.isPortraitEffectsMatteDeliveryEnabled = self.photoOutput.isPortraitEffectsMatteDeliverySupported
-                    
+
                     self.session.commitConfiguration()
                 } catch {
                     print("Error occurred while creating video device input: \(error)")
@@ -495,8 +482,6 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
                 self.captureModeControl.isEnabled = true
                 self.depthDataDeliveryButton.isEnabled = self.photoOutput.isDepthDataDeliveryEnabled
                 self.depthDataDeliveryButton.isHidden = !self.photoOutput.isDepthDataDeliverySupported
-                self.portraitEffectsMatteDeliveryButton.isEnabled = self.photoOutput.isPortraitEffectsMatteDeliveryEnabled
-                self.portraitEffectsMatteDeliveryButton.isHidden = !self.photoOutput.isPortraitEffectsMatteDeliverySupported
             }
         }
     }
@@ -583,9 +568,6 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
             photoSettings.isDepthDataDeliveryEnabled = (self.depthDataDeliveryMode == .on
                 && self.photoOutput.isDepthDataDeliveryEnabled)
             
-            photoSettings.isPortraitEffectsMatteDeliveryEnabled = (self.portraitEffectsMatteDeliveryMode == .on
-                && self.photoOutput.isPortraitEffectsMatteDeliveryEnabled)
-            
             let photoCaptureProcessor = PhotoCaptureProcessor(with: photoSettings, willCapturePhotoAnimation: {
                 // Flash the screen to signal that AVCam took a photo.
                 DispatchQueue.main.async {
@@ -637,11 +619,6 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
         case off
     }
     
-    private enum PortraitEffectsMatteDeliveryMode {
-        case on
-        case off
-    }
-    
     private var livePhotoMode: LivePhotoMode = .off
     
     @IBOutlet private weak var livePhotoModeButton: UIButton!
@@ -669,44 +646,17 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
         sessionQueue.async {
             self.depthDataDeliveryMode = (self.depthDataDeliveryMode == .on) ? .off : .on
             let depthDataDeliveryMode = self.depthDataDeliveryMode
-            if depthDataDeliveryMode == .off {
-                self.portraitEffectsMatteDeliveryMode = .off
-            }
             
             DispatchQueue.main.async {
                 if depthDataDeliveryMode == .on {
                     self.depthDataDeliveryButton.setImage(#imageLiteral(resourceName: "DepthON"), for: [])
                 } else {
                     self.depthDataDeliveryButton.setImage(#imageLiteral(resourceName: "DepthOFF"), for: [])
-                    self.portraitEffectsMatteDeliveryButton.setImage(#imageLiteral(resourceName: "PortraitMatteOFF"), for: [])
                 }
             }
         }
     }
-    
-    private var portraitEffectsMatteDeliveryMode: PortraitEffectsMatteDeliveryMode = .off
-    
-    @IBOutlet private weak var portraitEffectsMatteDeliveryButton: UIButton!
-    
-    @IBAction func togglePortraitEffectsMatteDeliveryMode(_ portraitEffectsMatteDeliveryButton: UIButton) {
-        sessionQueue.async {
-            if self.portraitEffectsMatteDeliveryMode == .on {
-                self.portraitEffectsMatteDeliveryMode = .off
-            } else {
-                self.portraitEffectsMatteDeliveryMode = (self.depthDataDeliveryMode == .off) ? .off : .on
-            }
-            let portraitEffectsMatteDeliveryMode = self.portraitEffectsMatteDeliveryMode
-            
-            DispatchQueue.main.async {
-                if portraitEffectsMatteDeliveryMode == .on {
-                    self.portraitEffectsMatteDeliveryButton.setImage(#imageLiteral(resourceName: "PortraitMatteON"), for: [])
-                } else {
-                    self.portraitEffectsMatteDeliveryButton.setImage(#imageLiteral(resourceName: "PortraitMatteOFF"), for: [])
-                }
-            }
-        }
-    }
-    
+
     private var inProgressLivePhotoCapturesCount = 0
     
     @IBOutlet var capturingLivePhotoLabel: UILabel!
@@ -851,9 +801,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
             let isLivePhotoCaptureEnabled = self.photoOutput.isLivePhotoCaptureEnabled
             let isDepthDeliveryDataSupported = self.photoOutput.isDepthDataDeliverySupported
             let isDepthDeliveryDataEnabled = self.photoOutput.isDepthDataDeliveryEnabled
-            let isPortraitEffectsMatteSupported = self.photoOutput.isPortraitEffectsMatteDeliverySupported
-            let isPortraitEffectsMatteEnabled = self.photoOutput.isPortraitEffectsMatteDeliveryEnabled
-            
+
             DispatchQueue.main.async {
                 // Only enable the ability to change camera if the device has more than one camera.
                 self.cameraButton.isEnabled = isSessionRunning && self.videoDeviceDiscoverySession.uniqueDevicePositionsCount > 1
@@ -864,8 +812,6 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
                 self.livePhotoModeButton.isHidden = !(isSessionRunning && isLivePhotoCaptureSupported)
                 self.depthDataDeliveryButton.isEnabled = isSessionRunning && isDepthDeliveryDataEnabled
                 self.depthDataDeliveryButton.isHidden = !(isSessionRunning && isDepthDeliveryDataSupported)
-                self.portraitEffectsMatteDeliveryButton.isEnabled = isSessionRunning && isPortraitEffectsMatteEnabled
-                self.portraitEffectsMatteDeliveryButton.isHidden = !(isSessionRunning && isPortraitEffectsMatteSupported)
             }
         }
         keyValueObservations.append(keyValueObservation)

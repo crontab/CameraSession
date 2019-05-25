@@ -87,8 +87,6 @@ typedef NS_ENUM(NSInteger, AVCamPortraitEffectsMatteDeliveryMode) {
 @property (nonatomic, weak) IBOutlet UILabel* capturingLivePhotoLabel;
 @property (nonatomic, weak) IBOutlet UIButton* depthDataDeliveryButton;
 @property (nonatomic) AVCamDepthDataDeliveryMode depthDataDeliveryMode;
-@property (nonatomic, weak) IBOutlet UIButton* portraitEffectsMatteDeliveryButton;
-@property (nonatomic) AVCamPortraitEffectsMatteDeliveryMode portraitEffectsMatteDeliveryMode;
 
 @property (nonatomic) AVCapturePhotoOutput* photoOutput;
 @property (nonatomic) NSMutableDictionary<NSNumber* , AVCamPhotoCaptureDelegate* >* inProgressPhotoCaptureDelegates;
