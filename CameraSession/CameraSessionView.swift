@@ -14,22 +14,43 @@ import AVFoundation
 
 
 private let VIDEO_SESSION_PRESET = AVCaptureSession.Preset.hd1920x1080
+private let PHOTO_OUTPUT_CODEC_TYPE = AVVideoCodecType.jpeg
+private let ORIENTATION = AVCaptureVideoOrientation.portrait
 
 
-enum CameraViewStatus: Equatable {
-	case undefined
-	case configured
-	case notAuthorized
-	case configurationFailed(message: String)
+protocol CameraSessionViewDelegate: class {
+	// • cameraSessionView(_, didCompleteConfigurationWithStatus:)
+	// Called after the session has been configured or reconfigured as a result of changes in input device, capture mode (photo vs. video). Can be used to e.g. enable UI controls that you should disable before making any changes in the configuration.
+	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCompleteConfigurationWithStatus status: CameraSessionView.Status)
+
+	// • cameraSessionView(_, didCapturePhoto:, error:)
+	// Called when photo data is available after the call to capturePhoto(). Normally you would get the data via photo.fileDataRepresentation. Note that this method can be called multiple times in case both raw and another format was requested, or if operating in bracket mode (currently neither is supported by CameraSessionView)
+	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCapturePhoto photo: AVCapturePhoto?, error: Error?)
+
+	// Optional; can be used to animate the capture, e.g. flash the screen or make sound
+	func cameraSessionViewWillCapturePhoto(_ cameraSessionView: CameraSessionView)
+
+	// Optional; called when all photo output formats have been delivered via cameraSessionView(_, didCapturePhoto:, error:)
+	func cameraSessionView(_ cameraSessionView: CameraSessionView, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?)
 }
 
 
-protocol CameraViewDelegate: class {
-	func cameraView(_ cameraView: CameraSessionView, didCompleteConfigurationWithStatus status: CameraViewStatus)
+extension CameraSessionViewDelegate {
+	// Default implementations of optional methods:
+	func cameraSessionViewWillCapturePhoto(_ cameraSessionView: CameraSessionView) {}
+	func cameraSessionView(_ cameraSessionView: CameraSessionView, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {}
 }
 
 
-class CameraSessionView: UIView {
+class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate {
+
+	enum Status: Equatable {
+		case undefined
+		case configured
+		case notAuthorized
+		case configurationFailed(message: String)
+	}
+
 
 	var isPhoto: Bool = true {
 		didSet {
@@ -39,10 +60,12 @@ class CameraSessionView: UIView {
 		}
 	}
 
+
 	var isVideo: Bool {
 		get { return !isPhoto }
 		set { isPhoto = !newValue }
 	}
+
 
 	var isFront: Bool = false {
 		didSet {
@@ -52,12 +75,16 @@ class CameraSessionView: UIView {
 		}
 	}
 
+
 	var hasBackAndFront: Bool {
 		return videoDeviceDiscoverySession.uniqueDevicePositions.count > 0
 	}
 
 
-	func initialize(delegate: CameraViewDelegate, isPhoto: Bool, isFront: Bool) {
+	var isFlashEnabled: Bool = true // actually means automatic
+
+
+	func initialize(delegate: CameraSessionViewDelegate, isPhoto: Bool, isFront: Bool) {
 		precondition(status == .undefined)
 		precondition(Thread.isMainThread)
 
@@ -87,7 +114,23 @@ class CameraSessionView: UIView {
 	}
 
 
-	// TODO: take the point in view coordinates, convert
+	func capturePhoto() {
+		guard let photoOutput = photoOutput else {
+			preconditionFailure()
+		}
+		let photoSettings = photoOutput.availablePhotoCodecTypes.contains(PHOTO_OUTPUT_CODEC_TYPE) ?
+			AVCapturePhotoSettings(format: [AVVideoCodecKey: PHOTO_OUTPUT_CODEC_TYPE]) :
+			AVCapturePhotoSettings()
+		if self.videoDeviceInput.device.isFlashAvailable {
+			photoSettings.flashMode = self.isFlashEnabled ? .auto : .off
+		}
+		if !photoSettings.__availablePreviewPhotoPixelFormatTypes.isEmpty {
+			photoSettings.previewPhotoFormat = [kCVPixelBufferPixelFormatTypeKey as String: photoSettings.__availablePreviewPhotoPixelFormatTypes.first!]
+		}
+		photoOutput.capturePhoto(with: photoSettings, delegate: self)
+	}
+
+
 	func focus(with focusMode: AVCaptureDevice.FocusMode, exposureMode: AVCaptureDevice.ExposureMode, atPoint point: CGPoint,  monitorSubjectAreaChange: Bool) {
 		let devicePoint = videoPreviewLayer.captureDevicePointConverted(fromLayerPoint: point)
 		queue.async {
@@ -118,8 +161,8 @@ class CameraSessionView: UIView {
 	var videoPreviewLayer: AVCaptureVideoPreviewLayer { return layer as! AVCaptureVideoPreviewLayer }
 
 
-	private weak var delegate: CameraViewDelegate?
-	var status: CameraViewStatus = .undefined
+	private weak var delegate: CameraSessionViewDelegate?
+	var status: Status = .undefined
 	var isSessionRunning = false
 
 	var videoDeviceInput: AVCaptureDeviceInput!
@@ -206,7 +249,7 @@ class CameraSessionView: UIView {
 		isSessionRunning = self.session.isRunning
 
 		DispatchQueue.main.async {
-			self.delegate?.cameraView(self, didCompleteConfigurationWithStatus: self.status)
+			self.delegate?.cameraSessionView(self, didCompleteConfigurationWithStatus: self.status)
 		}
 	}
 
@@ -221,7 +264,7 @@ class CameraSessionView: UIView {
 						self.videoDeviceInput = videoDeviceInput
 						addDeviceInputObservers()
 						DispatchQueue.main.async {
-							self.videoPreviewLayer.connection?.videoOrientation = .portrait
+							self.videoPreviewLayer.connection?.videoOrientation = ORIENTATION
 						}
 					} else {
 						configurationFailed(message: "Couldn't add video device input to the session.")
@@ -306,6 +349,9 @@ class CameraSessionView: UIView {
 			if session.canAddOutput(photoOutput) {
 				session.addOutput(photoOutput)
 				photoOutput.isHighResolutionCaptureEnabled = true
+				if let connection = photoOutput.connection(with: .video) {
+					connection.videoOrientation = ORIENTATION
+				}
 				self.photoOutput = photoOutput
 			} else {
 				configurationFailed(message: "Could not add photo output to the session")
@@ -323,7 +369,7 @@ class CameraSessionView: UIView {
 		status = .configurationFailed(message: message)
 		session.commitConfiguration()
 		DispatchQueue.main.async {
-			self.delegate?.cameraView(self, didCompleteConfigurationWithStatus: self.status)
+			self.delegate?.cameraSessionView(self, didCompleteConfigurationWithStatus: self.status)
 		}
 	}
 
@@ -336,7 +382,7 @@ class CameraSessionView: UIView {
 //		let keyValueObservation = session.observe(\.isRunning, options: .new) { _, change in
 //			if change.newValue ?? false {
 //				DispatchQueue.main.async {
-//					self.delegate?.cameraViewSessionStarted(self)
+//					self.delegate?.cameraSessionViewSessionStarted(self)
 //				}
 //			}
 //		}
@@ -384,6 +430,30 @@ class CameraSessionView: UIView {
 		let point = CGPoint(x: bounds.midX, y: bounds.midY)
 		focus(with: .continuousAutoFocus, exposureMode: .continuousAutoExposure, atPoint: point, monitorSubjectAreaChange: false)
 	}
+
+
+	// - - -  Photo capture delegate
+
+	func photoOutput(_ output: AVCapturePhotoOutput, willCapturePhotoFor resolvedSettings: AVCaptureResolvedPhotoSettings) {
+		DispatchQueue.main.async {
+			self.delegate?.cameraSessionViewWillCapturePhoto(self)
+		}
+	}
+
+
+	func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+		DispatchQueue.main.async {
+			self.delegate?.cameraSessionView(self, didCapturePhoto: photo, error: error)
+		}
+	}
+
+
+	func photoOutput(_ output: AVCapturePhotoOutput, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {
+		DispatchQueue.main.async {
+			self.delegate?.cameraSessionView(self, didFinishCaptureFor: resolvedSettings, error: error)
+		}
+	}
+
 
 /*
 	/// - Tag: HandleRuntimeError

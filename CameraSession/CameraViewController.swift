@@ -3,26 +3,26 @@ import UIKit
 import AVFoundation
 import Photos
 
-class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelegate, CameraViewDelegate {
+
+class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelegate, CameraSessionViewDelegate {
 
 	// To be moved to VideoPreview or removed completely
-	private var session: AVCaptureSession { return videoPreview.session }
-	private var sessionQueue: DispatchQueue { return videoPreview.queue }
-	private var status: CameraViewStatus { get { return videoPreview.status } }
-	private var movieFileOutput: AVCaptureMovieFileOutput? { return videoPreview.videoOutput }
+	private var session: AVCaptureSession { return cameraSessionView.session }
+	private var sessionQueue: DispatchQueue { return cameraSessionView.queue }
+	private var movieFileOutput: AVCaptureMovieFileOutput? { return cameraSessionView.videoOutput }
 
-	func cameraView(_ cameraView: CameraSessionView, didCompleteConfigurationWithStatus status: CameraViewStatus) {
+	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCompleteConfigurationWithStatus status: CameraSessionView.Status) {
 		switch status {
 		case .undefined:
 			preconditionFailure()
 
 		case .configured:
-			self.cameraButton.isEnabled = videoPreview.hasBackAndFront
+			self.cameraButton.isEnabled = cameraSessionView.hasBackAndFront
 			// TODO: enable the two below based on output object availability
-			self.recordButton.isEnabled = cameraView.isVideo
-			self.photoButton.isEnabled = cameraView.isPhoto
+			self.recordButton.isEnabled = cameraSessionView.isVideo
+			self.photoButton.isEnabled = cameraSessionView.isPhoto
 			self.captureModeControl.isEnabled = true
-			self.captureModeControl.selectedSegmentIndex = cameraView.isPhoto ? 0 : 1
+			self.captureModeControl.selectedSegmentIndex = cameraSessionView.isPhoto ? 0 : 1
 			break
 
 		case .notAuthorized:
@@ -41,6 +41,36 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 	}
 
 
+	func cameraSessionViewWillCapturePhoto(_ cameraSessionView: CameraSessionView) {
+		// Flash the screen to signal that CameraSessionView took a photo.
+		self.cameraSessionView.videoPreviewLayer.opacity = 0
+		UIView.animate(withDuration: 0.25) {
+			self.cameraSessionView.videoPreviewLayer.opacity = 1
+		}
+	}
+
+
+	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCapturePhoto photo: AVCapturePhoto?, error: Error?) {
+		if let data = photo?.fileDataRepresentation() {
+			PHPhotoLibrary.requestAuthorization { status in
+				if status == .authorized {
+					PHPhotoLibrary.shared().performChanges({
+						let options = PHAssetResourceCreationOptions()
+						options.uniformTypeIdentifier = AVFileType.jpg.rawValue
+						let creationRequest = PHAssetCreationRequest.forAsset()
+						creationRequest.addResource(with: .photo, data: data, options: options)
+					},
+					completionHandler: { _, error in
+						if let error = error {
+							print("Error occurred while saving photo to photo library: \(error)")
+						}
+					})
+				}
+			}
+		}
+	}
+
+
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 	// MARK: View Controller Life Cycle
@@ -51,7 +81,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 		// Disable UI. Enable the UI later when (and if) the session starts running.
 		disableAllControls()
 
-		videoPreview.initialize(delegate: self, isPhoto: false, isFront: false)
+		cameraSessionView.initialize(delegate: self, isPhoto: false, isFront: false)
 	}
 
 
@@ -63,7 +93,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 	}
 
 
-	@IBOutlet private weak var videoPreview: CameraSessionView!
+	@IBOutlet private weak var cameraSessionView: CameraSessionView!
 
 	@IBAction private func resumeInterruptedSession(_ resumeButton: UIButton) {
 		sessionQueue.async {
@@ -75,7 +105,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 			if we aren't trying to resume the session running.
 			*/
 			self.session.startRunning()
-			self.videoPreview.isSessionRunning = self.session.isRunning
+			self.cameraSessionView.isSessionRunning = self.session.isRunning
 			if !self.session.isRunning {
 				DispatchQueue.main.async {
 					let alertController = UIAlertController(title: "Camera", message: "Unable to resume", preferredStyle: .alert)
@@ -98,10 +128,9 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 
 	@IBOutlet private weak var captureModeControl: UISegmentedControl!
 
-	/// - Tag: EnableDisableModes
 	@IBAction private func toggleCaptureMode(_ captureModeControl: UISegmentedControl) {
 		disableAllControls()
-		videoPreview.isPhoto = captureModeControl.selectedSegmentIndex == CaptureMode.photo.rawValue
+		cameraSessionView.isPhoto = captureModeControl.selectedSegmentIndex == CaptureMode.photo.rawValue
 	}
 
 	// MARK: Device Configuration
@@ -110,74 +139,21 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 
 	@IBOutlet private weak var cameraUnavailableLabel: UILabel!
 
-	/// - Tag: ChangeCamera
 	@IBAction private func changeCamera(_ cameraButton: UIButton) {
 		disableAllControls()
-		videoPreview.isFront = !videoPreview.isFront
+		cameraSessionView.isFront = !cameraSessionView.isFront
 	}
 
 	@IBAction private func focusAndExposeTap(_ gestureRecognizer: UITapGestureRecognizer) {
-		videoPreview.focus(with: .autoFocus, exposureMode: .autoExpose, atPoint: gestureRecognizer.location(in: videoPreview), monitorSubjectAreaChange: true)
+		cameraSessionView.focus(with: .autoFocus, exposureMode: .autoExpose, atPoint: gestureRecognizer.location(in: cameraSessionView), monitorSubjectAreaChange: true)
 	}
 
 	// MARK: Capturing Photos
 
-	private var inProgressPhotoCaptureDelegates = [Int64: PhotoCaptureProcessor]()
-
 	@IBOutlet private weak var photoButton: UIButton!
 
-	/// - Tag: CapturePhoto
 	@IBAction private func capturePhoto(_ photoButton: UIButton) {
-		/*
-		Retrieve the video preview layer's video orientation on the main queue before
-		entering the session queue. We do this to ensure UI elements are accessed on
-		the main thread and session configuration is done on the session queue.
-		*/
-		guard let photoOutput = videoPreview.photoOutput else {
-			preconditionFailure()
-		}
-		let videoPreviewLayerOrientation = videoPreview.videoPreviewLayer.connection?.videoOrientation
-
-		sessionQueue.async {
-			if let photoOutputConnection = photoOutput.connection(with: .video) {
-				photoOutputConnection.videoOrientation = videoPreviewLayerOrientation!
-			}
-			var photoSettings = AVCapturePhotoSettings()
-
-			// Capture HEIF photos when supported. Enable auto-flash and high-resolution photos.
-			if photoOutput.availablePhotoCodecTypes.contains(.hevc) {
-				photoSettings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.hevc])
-			}
-
-			if self.videoPreview.videoDeviceInput.device.isFlashAvailable {
-				photoSettings.flashMode = .auto
-			}
-
-			photoSettings.isHighResolutionPhotoEnabled = true
-			if !photoSettings.__availablePreviewPhotoPixelFormatTypes.isEmpty {
-				photoSettings.previewPhotoFormat = [kCVPixelBufferPixelFormatTypeKey as String: photoSettings.__availablePreviewPhotoPixelFormatTypes.first!]
-			}
-
-			let photoCaptureProcessor = PhotoCaptureProcessor(with: photoSettings, willCapturePhotoAnimation: {
-				// Flash the screen to signal that CameraSessionView took a photo.
-				DispatchQueue.main.async {
-					self.videoPreview.videoPreviewLayer.opacity = 0
-					UIView.animate(withDuration: 0.25) {
-						self.videoPreview.videoPreviewLayer.opacity = 1
-					}
-				}
-			}, completionHandler: { photoCaptureProcessor in
-				// When the capture is complete, remove a reference to the photo capture delegate so it can be deallocated.
-				self.sessionQueue.async {
-					self.inProgressPhotoCaptureDelegates[photoCaptureProcessor.requestedPhotoSettings.uniqueID] = nil
-				}
-			}
-			)
-
-			// The photo output keeps a weak reference to the photo capture delegate and stores it in an array to maintain a strong reference.
-			self.inProgressPhotoCaptureDelegates[photoCaptureProcessor.requestedPhotoSettings.uniqueID] = photoCaptureProcessor
-			photoOutput.capturePhoto(with: photoSettings, delegate: photoCaptureProcessor)
-		}
+		cameraSessionView.capturePhoto()
 	}
 
 	// MARK: Recording Movies
@@ -203,7 +179,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 		recordButton.isEnabled = false
 		captureModeControl.isEnabled = false
 
-		let videoPreviewLayerOrientation = videoPreview.videoPreviewLayer.connection?.videoOrientation
+		let videoPreviewLayerOrientation = cameraSessionView.videoPreviewLayer.connection?.videoOrientation
 
 		sessionQueue.async {
 			if !movieFileOutput.isRecording {
@@ -231,7 +207,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 		}
 	}
 
-	/// - Tag: DidStartRecording
+
 	func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {
 		// Enable the Record button to let the user stop recording.
 		DispatchQueue.main.async {
@@ -240,7 +216,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 		}
 	}
 
-	/// - Tag: DidFinishRecording
+
 	func fileOutput(_ output: AVCaptureFileOutput,
 					didFinishRecordingTo outputFileURL: URL,
 					from connections: [AVCaptureConnection],
@@ -300,7 +276,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 		// Enable the Camera and Record buttons to let the user switch camera and start another recording.
 		DispatchQueue.main.async {
 			// Only enable the ability to change camera if the device has more than one camera.
-			self.cameraButton.isEnabled = self.videoPreview.hasBackAndFront
+			self.cameraButton.isEnabled = self.cameraSessionView.hasBackAndFront
 			self.recordButton.isEnabled = true
 			self.captureModeControl.isEnabled = true
 			self.recordButton.setImage(#imageLiteral(resourceName: "CaptureVideo"), for: [])
