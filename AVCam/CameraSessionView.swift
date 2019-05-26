@@ -18,11 +18,11 @@ enum CameraViewStatus: Equatable {
 
 
 protocol CameraViewDelegate: class {
-	func cameraView(_ cameraView: CameraView, didCompleteConfigurationWithStatus status: CameraViewStatus)
+	func cameraView(_ cameraView: CameraSessionView, didCompleteConfigurationWithStatus status: CameraViewStatus)
 }
 
 
-class CameraView: UIView {
+class CameraSessionView: UIView {
 
 	var isPhoto: Bool = true {
 		didSet {
@@ -98,7 +98,7 @@ class CameraView: UIView {
 				device.isSubjectAreaChangeMonitoringEnabled = monitorSubjectAreaChange
 				device.unlockForConfiguration()
 			} catch {
-				print("CameraView error: Could not lock device for configuration: \(error)")
+				print("CameraSessionView error: Could not lock device for configuration: \(error)")
 			}
 		}
 	}
@@ -128,7 +128,7 @@ class CameraView: UIView {
 	private(set) var queue: DispatchQueue!
 
 
-	
+
 	// - - -  SETUP
 
 
@@ -260,10 +260,10 @@ class CameraView: UIView {
 					session.addInput(audioDeviceInput)
 					self.audioDeviceInput = audioDeviceInput
 				} else {
-					print("CameraView error: Could not add audio device input to the session")
+					print("CameraSessionView error: Could not add audio device input to the session")
 				}
 			} catch {
-				print("CameraView error: Could not create audio device input: \(error)")
+				print("CameraSessionView error: Could not create audio device input: \(error)")
 			}
 		}
 		else if !isVideo, let audioDeviceInput = audioDeviceInput {
@@ -384,7 +384,7 @@ class CameraView: UIView {
 	func sessionRuntimeError(notification: NSNotification) {
 		guard let error = notification.userInfo?[AVCaptureSessionErrorKey] as? AVError else { return }
 
-		print("CameraView error: Capture session runtime error: \(error)")
+		print("CameraSessionView error: Capture session runtime error: \(error)")
 		// If media services were reset, and the last start succeeded, restart the session.
 		if error.code == .mediaServicesWereReset {
 			queue.async {
@@ -417,7 +417,7 @@ class CameraView: UIView {
 		if let userInfoValue = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as AnyObject?,
 			let reasonIntegerValue = userInfoValue.integerValue,
 			let reason = AVCaptureSession.InterruptionReason(rawValue: reasonIntegerValue) {
-			print("CameraView error: Capture session was interrupted with reason \(reason)")
+			print("CameraSessionView error: Capture session was interrupted with reason \(reason)")
 
 			var showResumeButton = false
 			if reason == .audioDeviceInUseByAnotherClient || reason == .videoDeviceInUseByAnotherClient {
@@ -430,7 +430,7 @@ class CameraView: UIView {
 					self.cameraUnavailableLabel.alpha = 1
 				}
 			} else if reason == .videoDeviceNotAvailableDueToSystemPressure {
-				print("CameraView error: Session stopped running due to shutdown system pressure level.")
+				print("CameraSessionView error: Session stopped running due to shutdown system pressure level.")
 			}
 			if showResumeButton {
 				// Fade-in a button to enable the user to try to resume the session running.
@@ -445,7 +445,7 @@ class CameraView: UIView {
 
 	@objc
 	func sessionInterruptionEnded(notification: NSNotification) {
-		print("CameraView error: Capture session interruption ended")
+		print("CameraSessionView error: Capture session interruption ended")
 
 		if !resumeButton.isHidden {
 			UIView.animate(withDuration: 0.25,

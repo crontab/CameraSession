@@ -11,7 +11,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 	private var status: CameraViewStatus { get { return videoPreview.status } }
 	private var movieFileOutput: AVCaptureMovieFileOutput? { return videoPreview.videoOutput }
 
-	func cameraView(_ cameraView: CameraView, didCompleteConfigurationWithStatus status: CameraViewStatus) {
+	func cameraView(_ cameraView: CameraSessionView, didCompleteConfigurationWithStatus status: CameraViewStatus) {
 		switch status {
 		case .undefined:
 			preconditionFailure()
@@ -63,7 +63,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 	}
 
 
-	@IBOutlet private weak var videoPreview: CameraView!
+	@IBOutlet private weak var videoPreview: CameraSessionView!
 
 	@IBAction private func resumeInterruptedSession(_ resumeButton: UIButton) {
 		sessionQueue.async {
