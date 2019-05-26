@@ -117,8 +117,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 	}
 
 	@IBAction private func focusAndExposeTap(_ gestureRecognizer: UITapGestureRecognizer) {
-		let devicePoint = videoPreview.videoPreviewLayer.captureDevicePointConverted(fromLayerPoint: gestureRecognizer.location(in: gestureRecognizer.view))
-		videoPreview.focus(with: .autoFocus, exposureMode: .autoExpose, at: devicePoint, monitorSubjectAreaChange: true)
+		videoPreview.focus(with: .autoFocus, exposureMode: .autoExpose, atPoint: gestureRecognizer.location(in: videoPreview), monitorSubjectAreaChange: true)
 	}
 
 	// MARK: Capturing Photos

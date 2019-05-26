@@ -88,8 +88,8 @@ class CameraSessionView: UIView {
 
 
 	// TODO: take the point in view coordinates, convert
-	func focus(with focusMode: AVCaptureDevice.FocusMode, exposureMode: AVCaptureDevice.ExposureMode, at devicePoint: CGPoint,  monitorSubjectAreaChange: Bool) {
-
+	func focus(with focusMode: AVCaptureDevice.FocusMode, exposureMode: AVCaptureDevice.ExposureMode, atPoint point: CGPoint,  monitorSubjectAreaChange: Bool) {
+		let devicePoint = videoPreviewLayer.captureDevicePointConverted(fromLayerPoint: point)
 		queue.async {
 			let device = self.videoDeviceInput.device
 			do {
@@ -381,8 +381,8 @@ class CameraSessionView: UIView {
 
 	@objc
 	func subjectAreaDidChange(notification: NSNotification) {
-		let devicePoint = CGPoint(x: 0.5, y: 0.5)
-		focus(with: .continuousAutoFocus, exposureMode: .continuousAutoExposure, at: devicePoint, monitorSubjectAreaChange: false)
+		let point = CGPoint(x: bounds.midX, y: bounds.midY)
+		focus(with: .continuousAutoFocus, exposureMode: .continuousAutoExposure, atPoint: point, monitorSubjectAreaChange: false)
 	}
 
 /*
