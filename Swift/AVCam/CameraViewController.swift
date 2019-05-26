@@ -9,40 +9,35 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 	private var session: AVCaptureSession { return videoPreview.session }
 	private var sessionQueue: DispatchQueue { return videoPreview.queue }
 	private var status: CameraViewStatus { get { return videoPreview.status } }
+	private var movieFileOutput: AVCaptureMovieFileOutput? { return videoPreview.videoOutput }
 
-
-	func cameraViewDidCompleteConfiguration(withStatus status: CameraViewStatus) {
+	func cameraView(_ cameraView: CameraView, didCompleteConfigurationWithStatus status: CameraViewStatus) {
 		switch status {
 		case .undefined:
 			preconditionFailure()
 
 		case .configured:
+			self.cameraButton.isEnabled = videoPreview.hasBackAndFront
+			// TODO: enable the two below based on output object availability
+			self.recordButton.isEnabled = cameraView.isVideo
+			self.photoButton.isEnabled = cameraView.isPhoto
+			self.captureModeControl.isEnabled = true
+			self.captureModeControl.selectedSegmentIndex = cameraView.isPhoto ? 0 : 1
 			break
 
 		case .notAuthorized:
-			let changePrivacySetting = "AVCam doesn't have permission to use the camera, please change privacy settings"
-			let message = NSLocalizedString(changePrivacySetting, comment: "Alert message when the user has denied access to the camera")
-			let alertController = UIAlertController(title: "AVCam", message: message, preferredStyle: .alert)
-			alertController.addAction(UIAlertAction(title: NSLocalizedString("OK", comment: "Alert OK button"), style: .cancel, handler: nil))
-			alertController.addAction(UIAlertAction(title: NSLocalizedString("Settings", comment: "Alert button to open Settings"), style: .`default`, handler: { _ in
+			let alertController = UIAlertController(title: "Camera", message: "The app doesn't have permission to use the camera, please change privacy settings", preferredStyle: .alert)
+			alertController.addAction(UIAlertAction(title: "OK", style: .cancel, handler: nil))
+			alertController.addAction(UIAlertAction(title: "Settings", style: .`default`, handler: { _ in
 				UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!, options: [:], completionHandler: nil)
 			}))
 			self.present(alertController, animated: true, completion: nil)
 
 		case let .configurationFailed(message):
-			let alertController = UIAlertController(title: "Cemare", message: message, preferredStyle: .alert)
-			alertController.addAction(UIAlertAction(title: NSLocalizedString("OK", comment: "Alert OK button"), style: .cancel, handler: nil))
+			let alertController = UIAlertController(title: "Camera", message: message, preferredStyle: .alert)
+			alertController.addAction(UIAlertAction(title: "OK", style: .cancel, handler: nil))
 			self.present(alertController, animated: true, completion: nil)
 		}
-	}
-
-
-	func cameraViewSessionStarted() {
-		// Only enable the ability to change camera if the device has more than one camera.
-		self.cameraButton.isEnabled = self.videoDeviceDiscoverySession.uniqueDevicePositionsCount > 1
-		self.recordButton.isEnabled = self.movieFileOutput != nil
-		self.photoButton.isEnabled = true
-		self.captureModeControl.isEnabled = true
 	}
 
 
@@ -53,18 +48,20 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 	override func viewDidLoad() {
 		super.viewDidLoad()
 
-		// Disable UI. Enable the UI later, if and only if the session starts running.
+		// Disable UI. Enable the UI later when (and if) the session starts running.
+		disableAllControls()
+
+		videoPreview.initialize(delegate: self, isPhoto: false, isFront: false)
+	}
+
+
+	private func disableAllControls() {
 		cameraButton.isEnabled = false
 		recordButton.isEnabled = false
 		photoButton.isEnabled = false
 		captureModeControl.isEnabled = false
-
-		// Set up the video preview view.
-		videoPreview.initialize(delegate: self, isPhoto: true, isFront: false)
 	}
 
-
-	// MARK: Session Management
 
 	@IBOutlet private weak var videoPreview: CameraView!
 
@@ -104,53 +101,8 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 
 	/// - Tag: EnableDisableModes
 	@IBAction private func toggleCaptureMode(_ captureModeControl: UISegmentedControl) {
-		captureModeControl.isEnabled = false
-
-		if captureModeControl.selectedSegmentIndex == CaptureMode.photo.rawValue {
-			recordButton.isEnabled = false
-
-			sessionQueue.async {
-				// Remove the AVCaptureMovieFileOutput from the session since it doesn't support capture of Live Photos.
-				self.session.beginConfiguration()
-				self.session.removeOutput(self.movieFileOutput!)
-				self.session.sessionPreset = .photo
-
-				DispatchQueue.main.async {
-					captureModeControl.isEnabled = true
-				}
-
-				self.movieFileOutput = nil
-
-				self.session.commitConfiguration()
-			}
-		} else if captureModeControl.selectedSegmentIndex == CaptureMode.movie.rawValue {
-
-			sessionQueue.async {
-				let movieFileOutput = AVCaptureMovieFileOutput()
-
-				if self.session.canAddOutput(movieFileOutput) {
-					self.session.beginConfiguration()
-					self.session.addOutput(movieFileOutput)
-					self.session.sessionPreset = .high
-					if let connection = movieFileOutput.connection(with: .video) {
-						if connection.isVideoStabilizationSupported {
-							connection.preferredVideoStabilizationMode = .auto
-						}
-					}
-					self.session.commitConfiguration()
-
-					DispatchQueue.main.async {
-						captureModeControl.isEnabled = true
-					}
-
-					self.movieFileOutput = movieFileOutput
-
-					DispatchQueue.main.async {
-						self.recordButton.isEnabled = true
-					}
-				}
-			}
-		}
+		disableAllControls()
+		videoPreview.isPhoto = captureModeControl.selectedSegmentIndex == CaptureMode.photo.rawValue
 	}
 
 	// MARK: Device Configuration
@@ -159,15 +111,9 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 
 	@IBOutlet private weak var cameraUnavailableLabel: UILabel!
 
-	// TODO: add .builtinTelelensCamera discovery
-	private let videoDeviceDiscoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .builtInDualCamera, .builtInTrueDepthCamera], mediaType: .video, position: .unspecified)
-
 	/// - Tag: ChangeCamera
 	@IBAction private func changeCamera(_ cameraButton: UIButton) {
-		cameraButton.isEnabled = false
-		recordButton.isEnabled = false
-		photoButton.isEnabled = false
-		captureModeControl.isEnabled = false
+		disableAllControls()
 
 		sessionQueue.async {
 			let currentVideoDevice = self.videoPreview.videoDeviceInput.device
@@ -188,7 +134,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 			@unknown default:
 				fatalError()
 			}
-			let devices = self.videoDeviceDiscoverySession.devices
+			let devices = self.videoPreview.videoDeviceDiscoverySession.devices
 			var newVideoDevice: AVCaptureDevice? = nil
 
 			// First, seek a device with both the preferred position and device type. Otherwise, seek a device with only the preferred position.
@@ -255,16 +201,19 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 		entering the session queue. We do this to ensure UI elements are accessed on
 		the main thread and session configuration is done on the session queue.
 		*/
+		guard let photoOutput = videoPreview.photoOutput else {
+			preconditionFailure()
+		}
 		let videoPreviewLayerOrientation = videoPreview.videoPreviewLayer.connection?.videoOrientation
 
 		sessionQueue.async {
-			if let photoOutputConnection = self.videoPreview.photoOutput.connection(with: .video) {
+			if let photoOutputConnection = photoOutput.connection(with: .video) {
 				photoOutputConnection.videoOrientation = videoPreviewLayerOrientation!
 			}
 			var photoSettings = AVCapturePhotoSettings()
 
 			// Capture HEIF photos when supported. Enable auto-flash and high-resolution photos.
-			if  self.videoPreview.photoOutput.availablePhotoCodecTypes.contains(.hevc) {
+			if photoOutput.availablePhotoCodecTypes.contains(.hevc) {
 				photoSettings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.hevc])
 			}
 
@@ -295,13 +244,11 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 
 			// The photo output keeps a weak reference to the photo capture delegate and stores it in an array to maintain a strong reference.
 			self.inProgressPhotoCaptureDelegates[photoCaptureProcessor.requestedPhotoSettings.uniqueID] = photoCaptureProcessor
-			self.videoPreview.photoOutput.capturePhoto(with: photoSettings, delegate: photoCaptureProcessor)
+			photoOutput.capturePhoto(with: photoSettings, delegate: photoCaptureProcessor)
 		}
 	}
 
 	// MARK: Recording Movies
-
-	private var movieFileOutput: AVCaptureMovieFileOutput?
 
 	private var backgroundRecordingID: UIBackgroundTaskIdentifier?
 
@@ -421,7 +368,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 		// Enable the Camera and Record buttons to let the user switch camera and start another recording.
 		DispatchQueue.main.async {
 			// Only enable the ability to change camera if the device has more than one camera.
-			self.cameraButton.isEnabled = self.videoDeviceDiscoverySession.uniqueDevicePositionsCount > 1
+			self.cameraButton.isEnabled = self.videoPreview.hasBackAndFront
 			self.recordButton.isEnabled = true
 			self.captureModeControl.isEnabled = true
 			self.recordButton.setImage(#imageLiteral(resourceName: "CaptureVideo"), for: [])
@@ -430,16 +377,3 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 
 }
 
-extension AVCaptureDevice.DiscoverySession {
-	var uniqueDevicePositionsCount: Int {
-		var uniqueDevicePositions: [AVCaptureDevice.Position] = []
-
-		for device in devices {
-			if !uniqueDevicePositions.contains(device.position) {
-				uniqueDevicePositions.append(device.position)
-			}
-		}
-
-		return uniqueDevicePositions.count
-	}
-}

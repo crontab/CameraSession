@@ -6,6 +6,9 @@ import AVFoundation
 // TODO: implement session interruption observers
 
 
+private let VIDEO_SESSION_PRESET = AVCaptureSession.Preset.hd1920x1080
+
+
 enum CameraViewStatus: Equatable {
 	case undefined
 	case configured
@@ -15,15 +18,30 @@ enum CameraViewStatus: Equatable {
 
 
 protocol CameraViewDelegate: class {
-	func cameraViewDidCompleteConfiguration(withStatus status: CameraViewStatus)
-	func cameraViewSessionStarted()
+	func cameraView(_ cameraView: CameraView, didCompleteConfigurationWithStatus status: CameraViewStatus)
 }
 
 
 class CameraView: UIView {
 
-	var isPhoto: Bool = true // otherwise video
+	var isPhoto: Bool = true {
+		didSet {
+			if status == .configured && oldValue != isPhoto {
+				didSwitchPhotoVideoMode()
+			}
+		}
+	}
+
+	var isVideo: Bool {
+		get { return !isPhoto }
+		set { isPhoto = !newValue }
+	}
+
 	var isFront: Bool = false
+
+	var hasBackAndFront: Bool {
+		return videoDeviceDiscoverySession.uniqueDevicePositions.count > 0
+	}
 
 
 	func initialize(delegate: CameraViewDelegate, isPhoto: Bool, isFront: Bool) {
@@ -39,7 +57,11 @@ class CameraView: UIView {
 			videoPreviewLayer.session = session
 		}
 
-		checkAuthorization() // runs on main thread, blocks the session thread
+		if queue == nil {
+			queue = DispatchQueue(label: String(describing: self))
+		}
+
+		checkAuthorization() // runs on main thread, blocks the session thread if UI is involved
 
 		queue.async {
 			self.configureSession()
@@ -52,6 +74,7 @@ class CameraView: UIView {
 	}
 
 
+	// TODO: take the point in view coordinates, convert
 	func focus(with focusMode: AVCaptureDevice.FocusMode, exposureMode: AVCaptureDevice.ExposureMode, at devicePoint: CGPoint,  monitorSubjectAreaChange: Bool) {
 
 		queue.async {
@@ -85,12 +108,18 @@ class CameraView: UIView {
 	private weak var delegate: CameraViewDelegate?
 	var status: CameraViewStatus = .undefined
 	var isSessionRunning = false
+
 	var videoDeviceInput: AVCaptureDeviceInput!
-	let photoOutput = AVCapturePhotoOutput()
+	var audioDeviceInput: AVCaptureDeviceInput?
+	var videoOutput: AVCaptureMovieFileOutput?
+	var photoOutput: AVCapturePhotoOutput?
+
+	// TODO: add .builtinTelelensCamera discovery
+	let videoDeviceDiscoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .builtInDualCamera, .builtInTrueDepthCamera], mediaType: .video, position: .unspecified)
+
 
 	private(set) var session: AVCaptureSession!
-
-	lazy var queue = { return DispatchQueue(label: String(describing: self)) }()
+	private(set) var queue: DispatchQueue!
 
 
 	
@@ -98,25 +127,11 @@ class CameraView: UIView {
 
 
 	private func checkAuthorization() {
-		/*
-		Check video authorization status. Video access is required and audio
-		access is optional. If the user denies audio access, AVCam won't
-		record audio during movie recording.
-		*/
 		switch AVCaptureDevice.authorizationStatus(for: .video) {
 		case .authorized:
-			// The user has previously granted access to the camera.
 			break
 
 		case .notDetermined:
-			/*
-			The user has not yet been presented with the option to grant
-			video access. We suspend the session queue to delay session
-			setup until the access request has completed.
-
-			Note that audio access will be implicitly requested when we
-			create an AVCaptureDeviceInput for audio during session setup.
-			*/
 			queue.suspend()
 			AVCaptureDevice.requestAccess(for: .video, completionHandler: { granted in
 				if !granted {
@@ -126,98 +141,154 @@ class CameraView: UIView {
 			})
 
 		default:
-			// The user has previously denied access.
 			status = .notAuthorized
 		}
 	}
 
 
+	private func didSwitchPhotoVideoMode() {
+		queue.async {
+			self.configureSession()
+		}
+	}
+
+
 	// Call this on the session queue.
-	/// - Tag: ConfigureSession
 	private func configureSession() {
-		if status != .undefined {
+		precondition(!Thread.isMainThread)
+
+		guard status == .undefined || status == .configured else {
 			return
 		}
 
 		session.beginConfiguration()
 
-		/*
-		We do not create an AVCaptureMovieFileOutput when setting up the session because
-		Live Photo is not supported when AVCaptureMovieFileOutput is added to the session.
-		*/
-		session.sessionPreset = .photo
+		session.sessionPreset = isPhoto ? .photo : VIDEO_SESSION_PRESET
 
-		// Add video input.
-		do {
-			var defaultVideoDevice: AVCaptureDevice?
-
-			// Choose the back dual camera if available, otherwise default to a wide angle camera.
-
-			if let dualCameraDevice = AVCaptureDevice.default(.builtInDualCamera, for: .video, position: .back) {
-				defaultVideoDevice = dualCameraDevice
-			} else if let backCameraDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) {
-				// If a rear dual camera is not available, default to the rear wide angle camera.
-				defaultVideoDevice = backCameraDevice
-			} else if let frontCameraDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) {
-				// In the event that the rear wide angle camera isn't available, default to the front wide angle camera.
-				defaultVideoDevice = frontCameraDevice
-			}
-			guard let videoDevice = defaultVideoDevice else {
-				configurationFailed(message: "Default video device is unavailable.")
-				return
-			}
-			let videoDeviceInput = try AVCaptureDeviceInput(device: videoDevice)
-
-			if session.canAddInput(videoDeviceInput) {
-				session.addInput(videoDeviceInput)
-				self.videoDeviceInput = videoDeviceInput
-
-				DispatchQueue.main.async {
-					self.videoPreviewLayer.connection?.videoOrientation = .portrait
-				}
-			} else {
-				configurationFailed(message: "Couldn't add video device input to the session.")
-				return
-			}
-		} catch {
-			configurationFailed(message: "Couldn't create video device input: \(error)")
-			return
-		}
-
-		// Add audio input.
-		do {
-			let audioDevice = AVCaptureDevice.default(for: .audio)
-			let audioDeviceInput = try AVCaptureDeviceInput(device: audioDevice!)
-
-			if session.canAddInput(audioDeviceInput) {
-				session.addInput(audioDeviceInput)
-			} else {
-				print("Could not add audio device input to the session")
-			}
-		} catch {
-			print("Could not create audio device input: \(error)")
-		}
-
-		// Add photo output.
-		if session.canAddOutput(photoOutput) {
-			session.addOutput(photoOutput)
-
-			photoOutput.isHighResolutionCaptureEnabled = true
-
-		} else {
-			configurationFailed(message: "Could not add photo output to the session")
-			return
-		}
+		configureVideoInput()
+		configureAudioInput()
+		configureVideoOutput()
+		configurePhotoOutput()
 
 		session.commitConfiguration()
-		status = .configured
 
-		addObservers()
+		if status == .undefined {
+			addObservers()
+		}
+
+		status = .configured
 		session.startRunning()
 		isSessionRunning = self.session.isRunning
 
 		DispatchQueue.main.async {
-			self.delegate?.cameraViewDidCompleteConfiguration(withStatus: self.status)
+			self.delegate?.cameraView(self, didCompleteConfigurationWithStatus: self.status)
+		}
+	}
+
+
+	private func configureVideoInput() {
+		if videoDeviceInput == nil {
+			do {
+				if let videoDevice = findMatchingDevice() {
+					let videoDeviceInput = try AVCaptureDeviceInput(device: videoDevice)
+					if session.canAddInput(videoDeviceInput) {
+						session.addInput(videoDeviceInput)
+						self.videoDeviceInput = videoDeviceInput
+						DispatchQueue.main.async {
+							self.videoPreviewLayer.connection?.videoOrientation = .portrait
+						}
+					} else {
+						configurationFailed(message: "Couldn't add video device input to the session.")
+						return
+					}
+				}
+				else {
+					configurationFailed(message: "No cameras found on this device. Is this a rotary phone or what?")
+				}
+			} catch {
+				configurationFailed(message: "Couldn't create video device input: \(error)")
+				return
+			}
+		}
+	}
+
+
+	private func findMatchingDevice() -> AVCaptureDevice? {
+		let type: AVCaptureDevice.DeviceType = isFront ? .builtInWideAngleCamera : .builtInDualCamera
+		let position: AVCaptureDevice.Position = isFront ? .front : .back
+
+		// First, look for a device with both the preferred position and device type
+		if let device = videoDeviceDiscoverySession.devices.first(where: { $0.deviceType == type && $0.position == position }) {
+			return device
+		}
+
+		// Otherwise, look for a device with only the preferred position
+		if let device = videoDeviceDiscoverySession.devices.first(where: { $0.position == position }) {
+			return device
+		}
+
+		// Or else, return just any device
+		return videoDeviceDiscoverySession.devices.first
+	}
+
+
+	private func configureAudioInput() {
+		if isVideo && audioDeviceInput == nil {
+			do {
+				let audioDevice = AVCaptureDevice.default(for: .audio)
+				let audioDeviceInput = try AVCaptureDeviceInput(device: audioDevice!)
+				if session.canAddInput(audioDeviceInput) {
+					session.addInput(audioDeviceInput)
+					self.audioDeviceInput = audioDeviceInput
+				} else {
+					print("CameraView error: Could not add audio device input to the session")
+				}
+			} catch {
+				print("CameraView error: Could not create audio device input: \(error)")
+			}
+		}
+		else if !isVideo, let audioDeviceInput = audioDeviceInput {
+			session.removeInput(audioDeviceInput)
+			self.audioDeviceInput = nil
+		}
+	}
+
+
+	private func configureVideoOutput() {
+		if isVideo && videoOutput == nil {
+			let videoOutput = AVCaptureMovieFileOutput()
+			if session.canAddOutput(videoOutput) {
+				session.addOutput(videoOutput)
+				if let connection = videoOutput.connection(with: .video) {
+					if connection.isVideoStabilizationSupported {
+						connection.preferredVideoStabilizationMode = .auto
+					}
+				}
+				self.videoOutput = videoOutput
+			}
+		}
+		else if !isVideo, let videoOutput = videoOutput {
+			session.removeOutput(videoOutput)
+			self.videoOutput = nil
+		}
+	}
+
+
+	private func configurePhotoOutput() {
+		if isPhoto && photoOutput == nil {
+			let photoOutput = AVCapturePhotoOutput()
+			if session.canAddOutput(photoOutput) {
+				session.addOutput(photoOutput)
+				photoOutput.isHighResolutionCaptureEnabled = true
+				self.photoOutput = photoOutput
+			} else {
+				configurationFailed(message: "Could not add photo output to the session")
+				return
+			}
+		}
+		else if !isPhoto, let photoOutput = photoOutput {
+			session.removeOutput(photoOutput)
+			self.photoOutput = nil
 		}
 	}
 
@@ -226,7 +297,7 @@ class CameraView: UIView {
 		status = .configurationFailed(message: message)
 		session.commitConfiguration()
 		DispatchQueue.main.async {
-			self.delegate?.cameraViewDidCompleteConfiguration(withStatus: self.status)
+			self.delegate?.cameraView(self, didCompleteConfigurationWithStatus: self.status)
 		}
 	}
 
@@ -236,15 +307,16 @@ class CameraView: UIView {
 	private var keyValueObservations = [NSKeyValueObservation]()
 
 	private func addObservers() {
-		let keyValueObservation = session.observe(\.isRunning, options: .new) { _, change in
-			if change.newValue ?? false {
-				DispatchQueue.main.async {
-					self.delegate?.cameraViewSessionStarted()
-				}
-			}
-		}
-		keyValueObservations.append(keyValueObservation)
+//		let keyValueObservation = session.observe(\.isRunning, options: .new) { _, change in
+//			if change.newValue ?? false {
+//				DispatchQueue.main.async {
+//					self.delegate?.cameraViewSessionStarted(self)
+//				}
+//			}
+//		}
+//		keyValueObservations.append(keyValueObservation)
 
+		// TODO: add/remove should be done in configureSession() since the device can change
 		NotificationCenter.default.addObserver(self, selector: #selector(subjectAreaDidChange), name: .AVCaptureDeviceSubjectAreaDidChange, object: videoDeviceInput.device)
 
 		// NotificationCenter.default.addObserver(self, selector: #selector(sessionRuntimeError), name: .AVCaptureSessionRuntimeError, object: session)
@@ -283,7 +355,7 @@ class CameraView: UIView {
 	func sessionRuntimeError(notification: NSNotification) {
 		guard let error = notification.userInfo?[AVCaptureSessionErrorKey] as? AVError else { return }
 
-		print("Capture session runtime error: \(error)")
+		print("CameraView error: Capture session runtime error: \(error)")
 		// If media services were reset, and the last start succeeded, restart the session.
 		if error.code == .mediaServicesWereReset {
 			queue.async {
@@ -316,7 +388,7 @@ class CameraView: UIView {
 		if let userInfoValue = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as AnyObject?,
 			let reasonIntegerValue = userInfoValue.integerValue,
 			let reason = AVCaptureSession.InterruptionReason(rawValue: reasonIntegerValue) {
-			print("Capture session was interrupted with reason \(reason)")
+			print("CameraView error: Capture session was interrupted with reason \(reason)")
 
 			var showResumeButton = false
 			if reason == .audioDeviceInUseByAnotherClient || reason == .videoDeviceInUseByAnotherClient {
@@ -329,7 +401,7 @@ class CameraView: UIView {
 					self.cameraUnavailableLabel.alpha = 1
 				}
 			} else if reason == .videoDeviceNotAvailableDueToSystemPressure {
-				print("Session stopped running due to shutdown system pressure level.")
+				print("CameraView error: Session stopped running due to shutdown system pressure level.")
 			}
 			if showResumeButton {
 				// Fade-in a button to enable the user to try to resume the session running.
@@ -344,7 +416,7 @@ class CameraView: UIView {
 
 	@objc
 	func sessionInterruptionEnded(notification: NSNotification) {
-		print("Capture session interruption ended")
+		print("CameraView error: Capture session interruption ended")
 
 		if !resumeButton.isHidden {
 			UIView.animate(withDuration: 0.25,
@@ -365,4 +437,17 @@ class CameraView: UIView {
 		}
 	}
 */
+}
+
+
+private extension AVCaptureDevice.DiscoverySession {
+	var uniqueDevicePositions: [AVCaptureDevice.Position] {
+		var result: [AVCaptureDevice.Position] = []
+		for device in devices {
+			if !result.contains(device.position) {
+				result.append(device.position)
+			}
+		}
+		return result
+	}
 }
