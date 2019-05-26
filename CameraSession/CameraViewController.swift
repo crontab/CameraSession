@@ -38,9 +38,9 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 
 	func cameraSessionViewWillCapturePhoto(_ cameraSessionView: CameraSessionView) {
 		// Flash the screen to signal that CameraSessionView took a photo.
-		self.cameraSessionView.videoPreviewLayer.opacity = 0
+		self.cameraSessionView.alpha = 0
 		UIView.animate(withDuration: 0.25) {
-			self.cameraSessionView.videoPreviewLayer.opacity = 1
+			self.cameraSessionView.alpha = 1
 		}
 	}
 
@@ -135,7 +135,7 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-	
+
 	override func viewDidLoad() {
 		super.viewDidLoad()
 		disableAllControls()

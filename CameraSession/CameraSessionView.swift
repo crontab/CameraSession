@@ -224,26 +224,23 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOut
 
 	// This view should have a AVCaptureVideoPreviewLayer as its main layer
 	override class var layerClass: AnyClass { return AVCaptureVideoPreviewLayer.self }
-	var videoPreviewLayer: AVCaptureVideoPreviewLayer { return layer as! AVCaptureVideoPreviewLayer }
+	private var videoPreviewLayer: AVCaptureVideoPreviewLayer { return layer as! AVCaptureVideoPreviewLayer }
 
+	private var session: AVCaptureSession!
+	private var queue: DispatchQueue!
 
 	private weak var delegate: CameraSessionViewDelegate?
-	var status: Status = .undefined
-	var isSessionRunning = false
+	private var status: Status = .undefined
+	private var isSessionRunning = false
 
-	var videoDeviceInput: AVCaptureDeviceInput!
-	var audioDeviceInput: AVCaptureDeviceInput?
-	var videoOutput: AVCaptureMovieFileOutput?
-	var photoOutput: AVCapturePhotoOutput?
+	private var videoDeviceInput: AVCaptureDeviceInput!
+	private var audioDeviceInput: AVCaptureDeviceInput?
+	private var videoOutput: AVCaptureMovieFileOutput?
+	private var photoOutput: AVCapturePhotoOutput?
 	private var backgroundRecordingID: UIBackgroundTaskIdentifier = .invalid
 
 	// TODO: add .builtinTelelensCamera discovery
-	let videoDeviceDiscoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .builtInDualCamera, .builtInTrueDepthCamera], mediaType: .video, position: .unspecified)
-
-
-	private(set) var session: AVCaptureSession!
-	private(set) var queue: DispatchQueue!
-
+	private let videoDeviceDiscoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .builtInDualCamera, .builtInTrueDepthCamera], mediaType: .video, position: .unspecified)
 
 
 	// - - -  SETUP
@@ -288,7 +285,6 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOut
 	}
 
 
-	// Call this on the session queue.
 	private func configureSession() {
 		precondition(!Thread.isMainThread)
 
@@ -322,6 +318,7 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOut
 
 
 	private func configureVideoInput() {
+		precondition(!Thread.isMainThread)
 		if videoDeviceInput == nil {
 			do {
 				if let videoDevice = findMatchingDevice() {
@@ -369,6 +366,7 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOut
 
 
 	private func configureAudioInput() {
+		precondition(!Thread.isMainThread)
 		if isVideo && audioDeviceInput == nil {
 			do {
 				let audioDevice = AVCaptureDevice.default(for: .audio)
@@ -391,6 +389,7 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOut
 
 
 	private func configureVideoOutput() {
+		precondition(!Thread.isMainThread)
 		if isVideo && videoOutput == nil {
 			let videoOutput = AVCaptureMovieFileOutput()
 			if session.canAddOutput(videoOutput) {
@@ -418,6 +417,7 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOut
 
 
 	private func configurePhotoOutput() {
+		precondition(!Thread.isMainThread)
 		if isPhoto && photoOutput == nil {
 			let photoOutput = AVCapturePhotoOutput()
 			if session.canAddOutput(photoOutput) {
