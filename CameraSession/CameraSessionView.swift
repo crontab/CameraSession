@@ -38,6 +38,9 @@ protocol CameraSessionViewDelegate: class {
 
 	// Does what it says; note that it is possible to have multiple recording processess finishing if background recording is enabled on the system; therefore it is recommended to have a unique/random temp file in each call to startRecording().
 	func cameraSessionView(_ cameraSessionView: CameraSessionView, didFinishRecordingTo fileUrl: URL, error: Error?)
+
+	// Optional; called in response to resumeInterruptedSession()
+	func cameraSessionView(_ cameraSessionView: CameraSessionView, didResumeInterruptedSessionWithResult: Bool)
 }
 
 
@@ -46,6 +49,7 @@ extension CameraSessionViewDelegate {
 	func cameraSessionViewWillCapturePhoto(_ cameraSessionView: CameraSessionView) {}
 	func cameraSessionView(_ cameraSessionView: CameraSessionView, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {}
 	func cameraSessionViewDidStartRecording(_ cameraSessionView: CameraSessionView) {}
+	func cameraSessionView(_ cameraSessionView: CameraSessionView, didResumeInterruptedSessionWithResult: Bool) {}
 }
 
 
@@ -58,6 +62,7 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOut
 		case configurationFailed(message: String)
 	}
 
+	
 	var isPhoto: Bool = true {
 		didSet {
 			if status == .configured && oldValue != isPhoto {
@@ -191,6 +196,25 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOut
 				device.unlockForConfiguration()
 			} catch {
 				print("CameraSessionView error: Could not lock device for configuration: \(error)")
+			}
+		}
+	}
+
+
+	func resumeInterruptedSession() {
+		queue.async {
+			/*
+			The session might fail to start running, e.g., if a phone or FaceTime call is still
+			using audio or video. A failure to start the session running will be communicated via
+			a session runtime error notification. To avoid repeatedly failing to start the session
+			running, we only try to restart the session running in the session runtime error handler
+			if we aren't trying to resume the session running.
+			*/
+			self.session.startRunning()
+			self.isSessionRunning = self.session.isRunning
+			let result = self.isSessionRunning
+			DispatchQueue.main.async {
+				self.delegate?.cameraSessionView(self, didResumeInterruptedSessionWithResult: result)
 			}
 		}
 	}

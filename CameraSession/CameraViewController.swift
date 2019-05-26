@@ -6,10 +6,6 @@ import Photos
 
 class CameraViewController: UIViewController, CameraSessionViewDelegate {
 
-	// To be moved to VideoPreview or removed completely
-	private var session: AVCaptureSession { return cameraSessionView.session }
-	private var sessionQueue: DispatchQueue { return cameraSessionView.queue }
-
 	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCompleteConfigurationWithStatus status: CameraSessionView.Status) {
 		switch status {
 		case .undefined:
@@ -124,16 +120,25 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 	}
 
 
+	func cameraSessionView(_ cameraSessionView: CameraSessionView, didResumeInterruptedSessionWithResult result: Bool) {
+		if result {
+			let alertController = UIAlertController(title: "Camera", message: "Unable to resume", preferredStyle: .alert)
+			let cancelAction = UIAlertAction(title: "OK", style: .cancel, handler: nil)
+			alertController.addAction(cancelAction)
+			self.present(alertController, animated: true, completion: nil)
+		}
+		else {
+			self.resumeButton.isHidden = true
+		}
+	}
+
+
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-	// MARK: View Controller Life Cycle
-
+	
 	override func viewDidLoad() {
 		super.viewDidLoad()
-
-		// Disable UI. Enable the UI later when (and if) the session starts running.
 		disableAllControls()
-
 		cameraSessionView.initialize(delegate: self, isPhoto: false, isFront: false)
 	}
 
@@ -148,31 +153,6 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 
 	@IBOutlet private weak var cameraSessionView: CameraSessionView!
 
-	@IBAction private func resumeInterruptedSession(_ resumeButton: UIButton) {
-		sessionQueue.async {
-			/*
-			The session might fail to start running, e.g., if a phone or FaceTime call is still
-			using audio or video. A failure to start the session running will be communicated via
-			a session runtime error notification. To avoid repeatedly failing to start the session
-			running, we only try to restart the session running in the session runtime error handler
-			if we aren't trying to resume the session running.
-			*/
-			self.session.startRunning()
-			self.cameraSessionView.isSessionRunning = self.session.isRunning
-			if !self.session.isRunning {
-				DispatchQueue.main.async {
-					let alertController = UIAlertController(title: "Camera", message: "Unable to resume", preferredStyle: .alert)
-					let cancelAction = UIAlertAction(title: "OK", style: .cancel, handler: nil)
-					alertController.addAction(cancelAction)
-					self.present(alertController, animated: true, completion: nil)
-				}
-			} else {
-				DispatchQueue.main.async {
-					self.resumeButton.isHidden = true
-				}
-			}
-		}
-	}
 
 	private enum CaptureMode: Int {
 		case photo = 0
@@ -186,7 +166,6 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 		cameraSessionView.isPhoto = captureModeControl.selectedSegmentIndex == CaptureMode.photo.rawValue
 	}
 
-	// MARK: Device Configuration
 
 	@IBOutlet private weak var cameraButton: UIButton!
 
@@ -197,11 +176,11 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 		cameraSessionView.isFront = !cameraSessionView.isFront
 	}
 
+
 	@IBAction private func focusAndExposeTap(_ gestureRecognizer: UITapGestureRecognizer) {
 		cameraSessionView.focus(with: .autoFocus, exposureMode: .autoExpose, atPoint: gestureRecognizer.location(in: cameraSessionView), monitorSubjectAreaChange: true)
 	}
 
-	// MARK: Capturing Photos
 
 	@IBOutlet private weak var photoButton: UIButton!
 
@@ -209,11 +188,15 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 		cameraSessionView.capturePhoto()
 	}
 
-	// MARK: Recording Movies
-
-	@IBOutlet private weak var recordButton: UIButton!
 
 	@IBOutlet private weak var resumeButton: UIButton!
+
+	@IBAction private func resumeInterruptedSession(_ resumeButton: UIButton) {
+		cameraSessionView.resumeInterruptedSession()
+	}
+
+
+	@IBOutlet private weak var recordButton: UIButton!
 
 	@IBAction private func toggleMovieRecording(_ recordButton: UIButton) {
 
