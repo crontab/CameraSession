@@ -78,9 +78,8 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 			self.videoPreview.isSessionRunning = self.session.isRunning
 			if !self.session.isRunning {
 				DispatchQueue.main.async {
-					let message = NSLocalizedString("Unable to resume", comment: "Alert message when unable to resume the session running")
-					let alertController = UIAlertController(title: "AVCam", message: message, preferredStyle: .alert)
-					let cancelAction = UIAlertAction(title: NSLocalizedString("OK", comment: "Alert OK button"), style: .cancel, handler: nil)
+					let alertController = UIAlertController(title: "Camera", message: "Unable to resume", preferredStyle: .alert)
+					let cancelAction = UIAlertAction(title: "OK", style: .cancel, handler: nil)
 					alertController.addAction(cancelAction)
 					self.present(alertController, animated: true, completion: nil)
 				}
@@ -161,7 +160,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 			}
 
 			let photoCaptureProcessor = PhotoCaptureProcessor(with: photoSettings, willCapturePhotoAnimation: {
-				// Flash the screen to signal that AVCam took a photo.
+				// Flash the screen to signal that CameraSessionView took a photo.
 				DispatchQueue.main.async {
 					self.videoPreview.videoPreviewLayer.opacity = 0
 					UIView.animate(withDuration: 0.25) {
@@ -286,7 +285,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 						creationRequest.addResource(with: .video, fileURL: outputFileURL, options: options)
 					}, completionHandler: { success, error in
 						if !success {
-							print("AVCam couldn't save the movie to your photo library: \(String(describing: error))")
+							print("CameraSessionView couldn't save the movie to your photo library: \(String(describing: error))")
 						}
 						cleanup()
 					}

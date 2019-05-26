@@ -1,3 +1,10 @@
+//
+//  CameraSessionView.swift
+//
+//  Created by Hovik Melikyan on 26/05/2019.
+//  Copyright © 2019 Hovik Melikyan. All rights reserved.
+//
+
 
 import UIKit
 import AVFoundation
@@ -409,7 +416,7 @@ class CameraSessionView: UIView {
 		/*
 		In some scenarios we want to enable the user to resume the session running.
 		For example, if music playback is initiated via control center while
-		using AVCam, then the user can let AVCam resume
+		using CameraSessionView, then the user can let CameraSessionView resume
 		the session running, which will stop music playback. Note that stopping
 		music playback in control center will not automatically resume the session
 		running. Also note that it is not always possible to resume, see `resumeInterruptedSession(_:)`.
