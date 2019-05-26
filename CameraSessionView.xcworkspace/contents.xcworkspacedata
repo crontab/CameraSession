@@ -2,6 +2,6 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "group:CameraSessionView.xcodeproj">
+      location = "group:/Users/hovik/Projects/Life/AVCam/CameraSession.xcodeproj">
    </FileRef>
 </Workspace>
