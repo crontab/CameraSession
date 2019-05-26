@@ -14,16 +14,16 @@ import AVFoundation
 
 
 private let VIDEO_SESSION_PRESET = AVCaptureSession.Preset.hd1920x1080
+private let VIDEO_CODEC_TYPE = AVVideoCodecType.hevc
 private let PHOTO_OUTPUT_CODEC_TYPE = AVVideoCodecType.jpeg
 private let ORIENTATION = AVCaptureVideoOrientation.portrait
 
 
 protocol CameraSessionViewDelegate: class {
-	// • cameraSessionView(_, didCompleteConfigurationWithStatus:)
+
 	// Called after the session has been configured or reconfigured as a result of changes in input device, capture mode (photo vs. video). Can be used to e.g. enable UI controls that you should disable before making any changes in the configuration.
 	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCompleteConfigurationWithStatus status: CameraSessionView.Status)
 
-	// • cameraSessionView(_, didCapturePhoto:, error:)
 	// Called when photo data is available after the call to capturePhoto(). Normally you would get the data via photo.fileDataRepresentation. Note that this method can be called multiple times in case both raw and another format was requested, or if operating in bracket mode (currently neither is supported by CameraSessionView)
 	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCapturePhoto photo: AVCapturePhoto?, error: Error?)
 
@@ -32,6 +32,12 @@ protocol CameraSessionViewDelegate: class {
 
 	// Optional; called when all photo output formats have been delivered via cameraSessionView(_, didCapturePhoto:, error:)
 	func cameraSessionView(_ cameraSessionView: CameraSessionView, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?)
+
+	// Optional
+	func cameraSessionViewDidStartRecording(_ cameraSessionView: CameraSessionView)
+
+	// Does what it says; note that it is possible to have multiple recording processess finishing if background recording is enabled on the system; therefore it is recommended to have a unique/random temp file in each call to startRecording().
+	func cameraSessionView(_ cameraSessionView: CameraSessionView, didFinishRecordingTo fileUrl: URL, error: Error?)
 }
 
 
@@ -39,10 +45,11 @@ extension CameraSessionViewDelegate {
 	// Default implementations of optional methods:
 	func cameraSessionViewWillCapturePhoto(_ cameraSessionView: CameraSessionView) {}
 	func cameraSessionView(_ cameraSessionView: CameraSessionView, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {}
+	func cameraSessionViewDidStartRecording(_ cameraSessionView: CameraSessionView) {}
 }
 
 
-class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate {
+class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecordingDelegate {
 
 	enum Status: Equatable {
 		case undefined
@@ -50,7 +57,6 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate {
 		case notAuthorized
 		case configurationFailed(message: String)
 	}
-
 
 	var isPhoto: Bool = true {
 		didSet {
@@ -60,12 +66,10 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate {
 		}
 	}
 
-
 	var isVideo: Bool {
 		get { return !isPhoto }
 		set { isPhoto = !newValue }
 	}
-
 
 	var isFront: Bool = false {
 		didSet {
@@ -75,13 +79,20 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate {
 		}
 	}
 
-
 	var hasBackAndFront: Bool {
-		return videoDeviceDiscoverySession.uniqueDevicePositions.count > 0
+		return videoDeviceDiscoverySession.uniqueDevicePositions.count > 1
 	}
 
+	var isFlashEnabled: Bool = true // actually means automatic or off
 
-	var isFlashEnabled: Bool = true // actually means automatic
+	var hasFlash: Bool {
+		return videoDeviceInput.device.isFlashAvailable
+	}
+
+	var isRecording: Bool {
+		// NOTE: this is not atomic, potentially may cause problems, so avoid using it, or use only when you know no re-configuration is on progress. One other way to implement this would be to have an async completion block with the boolean result. Don't how how useful it would be though.
+		return videoOutput?.isRecording ?? false
+	}
 
 
 	func initialize(delegate: CameraSessionViewDelegate, isPhoto: Bool, isFront: Bool) {
@@ -115,19 +126,50 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate {
 
 
 	func capturePhoto() {
-		guard let photoOutput = photoOutput else {
-			preconditionFailure()
+		queue.async {
+			guard let photoOutput = self.photoOutput else {
+				preconditionFailure()
+			}
+			let photoSettings = photoOutput.availablePhotoCodecTypes.contains(PHOTO_OUTPUT_CODEC_TYPE) ?
+				AVCapturePhotoSettings(format: [AVVideoCodecKey: PHOTO_OUTPUT_CODEC_TYPE]) :
+				AVCapturePhotoSettings()
+			if self.videoDeviceInput.device.isFlashAvailable {
+				photoSettings.flashMode = self.isFlashEnabled ? .auto : .off
+			}
+			if !photoSettings.__availablePreviewPhotoPixelFormatTypes.isEmpty {
+				photoSettings.previewPhotoFormat = [kCVPixelBufferPixelFormatTypeKey as String: photoSettings.__availablePreviewPhotoPixelFormatTypes.first!]
+			}
+			photoOutput.capturePhoto(with: photoSettings, delegate: self)
 		}
-		let photoSettings = photoOutput.availablePhotoCodecTypes.contains(PHOTO_OUTPUT_CODEC_TYPE) ?
-			AVCapturePhotoSettings(format: [AVVideoCodecKey: PHOTO_OUTPUT_CODEC_TYPE]) :
-			AVCapturePhotoSettings()
-		if self.videoDeviceInput.device.isFlashAvailable {
-			photoSettings.flashMode = self.isFlashEnabled ? .auto : .off
+	}
+
+
+	func startVideoRecording(toFileURL fileUrl: URL) {
+		queue.async {
+			guard let videoOutput = self.videoOutput else {
+				preconditionFailure()
+			}
+			guard !videoOutput.isRecording else {
+				return
+			}
+			if UIDevice.current.isMultitaskingSupported {
+				self.backgroundRecordingID = UIApplication.shared.beginBackgroundTask(expirationHandler: nil)
+			}
+			videoOutput.startRecording(to: fileUrl, recordingDelegate: self)
 		}
-		if !photoSettings.__availablePreviewPhotoPixelFormatTypes.isEmpty {
-			photoSettings.previewPhotoFormat = [kCVPixelBufferPixelFormatTypeKey as String: photoSettings.__availablePreviewPhotoPixelFormatTypes.first!]
+	}
+
+
+	func stopRecording() {
+		queue.async {
+			guard let videoOutput = self.videoOutput else {
+				preconditionFailure()
+			}
+			guard videoOutput.isRecording else {
+				return
+			}
+			videoOutput.stopRecording()
 		}
-		photoOutput.capturePhoto(with: photoSettings, delegate: self)
 	}
 
 
@@ -169,6 +211,7 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate {
 	var audioDeviceInput: AVCaptureDeviceInput?
 	var videoOutput: AVCaptureMovieFileOutput?
 	var photoOutput: AVCapturePhotoOutput?
+	private var backgroundRecordingID: UIBackgroundTaskIdentifier = .invalid
 
 	// TODO: add .builtinTelelensCamera discovery
 	let videoDeviceDiscoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .builtInDualCamera, .builtInTrueDepthCamera], mediaType: .video, position: .unspecified)
@@ -329,9 +372,16 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate {
 			if session.canAddOutput(videoOutput) {
 				session.addOutput(videoOutput)
 				if let connection = videoOutput.connection(with: .video) {
+					connection.videoOrientation = ORIENTATION
 					if connection.isVideoStabilizationSupported {
 						connection.preferredVideoStabilizationMode = .auto
 					}
+					if videoOutput.availableVideoCodecTypes.contains(VIDEO_CODEC_TYPE) {
+						videoOutput.setOutputSettings([AVVideoCodecKey: VIDEO_CODEC_TYPE], for: connection)
+					}
+				}
+				else {
+					print("CameraSessionView error: no video output connection")
 				}
 				self.videoOutput = videoOutput
 			}
@@ -370,6 +420,47 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate {
 		session.commitConfiguration()
 		DispatchQueue.main.async {
 			self.delegate?.cameraSessionView(self, didCompleteConfigurationWithStatus: self.status)
+		}
+	}
+
+
+	// - - -  CAPTURE/RECORDING DELEGATES
+
+	func photoOutput(_ output: AVCapturePhotoOutput, willCapturePhotoFor resolvedSettings: AVCaptureResolvedPhotoSettings) {
+		DispatchQueue.main.async {
+			self.delegate?.cameraSessionViewWillCapturePhoto(self)
+		}
+	}
+
+
+	func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+		DispatchQueue.main.async {
+			self.delegate?.cameraSessionView(self, didCapturePhoto: photo, error: error)
+		}
+	}
+
+
+	func photoOutput(_ output: AVCapturePhotoOutput, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {
+		DispatchQueue.main.async {
+			self.delegate?.cameraSessionView(self, didFinishCaptureFor: resolvedSettings, error: error)
+		}
+	}
+
+
+	func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {
+		DispatchQueue.main.async {
+			self.delegate?.cameraSessionViewDidStartRecording(self)
+		}
+	}
+
+
+	func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
+		if backgroundRecordingID != UIBackgroundTaskIdentifier.invalid {
+			UIApplication.shared.endBackgroundTask(backgroundRecordingID)
+			backgroundRecordingID = UIBackgroundTaskIdentifier.invalid
+		}
+		DispatchQueue.main.async {
+			self.delegate?.cameraSessionView(self, didFinishRecordingTo: outputFileURL, error: error)
 		}
 	}
 
@@ -429,29 +520,6 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate {
 	func subjectAreaDidChange(notification: NSNotification) {
 		let point = CGPoint(x: bounds.midX, y: bounds.midY)
 		focus(with: .continuousAutoFocus, exposureMode: .continuousAutoExposure, atPoint: point, monitorSubjectAreaChange: false)
-	}
-
-
-	// - - -  Photo capture delegate
-
-	func photoOutput(_ output: AVCapturePhotoOutput, willCapturePhotoFor resolvedSettings: AVCaptureResolvedPhotoSettings) {
-		DispatchQueue.main.async {
-			self.delegate?.cameraSessionViewWillCapturePhoto(self)
-		}
-	}
-
-
-	func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-		DispatchQueue.main.async {
-			self.delegate?.cameraSessionView(self, didCapturePhoto: photo, error: error)
-		}
-	}
-
-
-	func photoOutput(_ output: AVCapturePhotoOutput, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {
-		DispatchQueue.main.async {
-			self.delegate?.cameraSessionView(self, didFinishCaptureFor: resolvedSettings, error: error)
-		}
 	}
 
 
