@@ -114,73 +114,7 @@ class CameraViewController: UIViewController, AVCaptureFileOutputRecordingDelega
 	/// - Tag: ChangeCamera
 	@IBAction private func changeCamera(_ cameraButton: UIButton) {
 		disableAllControls()
-
-		sessionQueue.async {
-			let currentVideoDevice = self.videoPreview.videoDeviceInput.device
-			let currentPosition = currentVideoDevice.position
-
-			let preferredPosition: AVCaptureDevice.Position
-			let preferredDeviceType: AVCaptureDevice.DeviceType
-
-			switch currentPosition {
-			case .unspecified, .front:
-				preferredPosition = .back
-				preferredDeviceType = .builtInDualCamera
-
-			case .back:
-				preferredPosition = .front
-				preferredDeviceType = .builtInTrueDepthCamera
-
-			@unknown default:
-				fatalError()
-			}
-			let devices = self.videoPreview.videoDeviceDiscoverySession.devices
-			var newVideoDevice: AVCaptureDevice? = nil
-
-			// First, seek a device with both the preferred position and device type. Otherwise, seek a device with only the preferred position.
-			if let device = devices.first(where: { $0.position == preferredPosition && $0.deviceType == preferredDeviceType }) {
-				newVideoDevice = device
-			} else if let device = devices.first(where: { $0.position == preferredPosition }) {
-				newVideoDevice = device
-			}
-
-			if let videoDevice = newVideoDevice {
-				do {
-					let videoDeviceInput = try AVCaptureDeviceInput(device: videoDevice)
-
-					self.session.beginConfiguration()
-
-					// Remove the existing device input first, since the system doesn't support simultaneous use of the rear and front cameras.
-					self.session.removeInput(self.videoPreview.videoDeviceInput)
-
-					if self.session.canAddInput(videoDeviceInput) {
-						NotificationCenter.default.removeObserver(self, name: .AVCaptureDeviceSubjectAreaDidChange, object: currentVideoDevice)
-						NotificationCenter.default.addObserver(self, selector: #selector(self.videoPreview.subjectAreaDidChange), name: .AVCaptureDeviceSubjectAreaDidChange, object: videoDeviceInput.device)
-
-						self.session.addInput(videoDeviceInput)
-						self.videoPreview.videoDeviceInput = videoDeviceInput
-					} else {
-						self.session.addInput(self.videoPreview.videoDeviceInput)
-					}
-					if let connection = self.movieFileOutput?.connection(with: .video) {
-						if connection.isVideoStabilizationSupported {
-							connection.preferredVideoStabilizationMode = .auto
-						}
-					}
-
-					self.session.commitConfiguration()
-				} catch {
-					print("Error occurred while creating video device input: \(error)")
-				}
-			}
-
-			DispatchQueue.main.async {
-				self.cameraButton.isEnabled = true
-				self.recordButton.isEnabled = self.movieFileOutput != nil
-				self.photoButton.isEnabled = true
-				self.captureModeControl.isEnabled = true
-			}
-		}
+		videoPreview.isFront = !videoPreview.isFront
 	}
 
 	@IBAction private func focusAndExposeTap(_ gestureRecognizer: UITapGestureRecognizer) {

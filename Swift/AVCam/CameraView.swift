@@ -37,7 +37,13 @@ class CameraView: UIView {
 		set { isPhoto = !newValue }
 	}
 
-	var isFront: Bool = false
+	var isFront: Bool = false {
+		didSet {
+			if status == .configured && oldValue != isFront {
+				didSwitchCameraPosition()
+			}
+		}
+	}
 
 	var hasBackAndFront: Bool {
 		return videoDeviceDiscoverySession.uniqueDevicePositions.count > 0
@@ -70,7 +76,7 @@ class CameraView: UIView {
 
 
 	deinit {
-		removeObservers()
+		removeAllObservers()
 	}
 
 
@@ -153,6 +159,18 @@ class CameraView: UIView {
 	}
 
 
+	private func didSwitchCameraPosition() {
+		queue.async {
+			if let videoDeviceInput = self.videoDeviceInput {
+				self.removeDeviceInputObservers()
+				self.session.removeInput(videoDeviceInput)
+				self.videoDeviceInput = nil
+			}
+			self.configureSession()
+		}
+	}
+
+
 	// Call this on the session queue.
 	private func configureSession() {
 		precondition(!Thread.isMainThread)
@@ -194,6 +212,7 @@ class CameraView: UIView {
 					if session.canAddInput(videoDeviceInput) {
 						session.addInput(videoDeviceInput)
 						self.videoDeviceInput = videoDeviceInput
+						addDeviceInputObservers()
 						DispatchQueue.main.async {
 							self.videoPreviewLayer.connection?.videoOrientation = .portrait
 						}
@@ -316,9 +335,6 @@ class CameraView: UIView {
 //		}
 //		keyValueObservations.append(keyValueObservation)
 
-		// TODO: add/remove should be done in configureSession() since the device can change
-		NotificationCenter.default.addObserver(self, selector: #selector(subjectAreaDidChange), name: .AVCaptureDeviceSubjectAreaDidChange, object: videoDeviceInput.device)
-
 		// NotificationCenter.default.addObserver(self, selector: #selector(sessionRuntimeError), name: .AVCaptureSessionRuntimeError, object: session)
 
 		/*
@@ -333,9 +349,22 @@ class CameraView: UIView {
 	}
 
 
-	private func removeObservers() {
-		NotificationCenter.default.removeObserver(self)
+	private func addDeviceInputObservers() {
+		if let device = videoDeviceInput?.device {
+			NotificationCenter.default.addObserver(self, selector: #selector(subjectAreaDidChange), name: .AVCaptureDeviceSubjectAreaDidChange, object: device)
+		}
+	}
 
+
+	private func removeDeviceInputObservers() {
+		if let device = videoDeviceInput?.device {
+			NotificationCenter.default.removeObserver(self, name: .AVCaptureDeviceSubjectAreaDidChange, object: device)
+		}
+	}
+
+
+	private func removeAllObservers() {
+		NotificationCenter.default.removeObserver(self)
 		for keyValueObservation in keyValueObservations {
 			keyValueObservation.invalidate()
 		}
