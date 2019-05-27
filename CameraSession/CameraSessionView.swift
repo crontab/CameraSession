@@ -19,7 +19,7 @@ private let AUDIO_FORMAT = Int(kAudioFormatMPEG4AAC)
 private let AUDIO_SAMPLING_RATE = 44100.0
 private let PHOTO_OUTPUT_CODEC_TYPE = AVVideoCodecType.jpeg
 private let VIDEO_FILE_TYPE = AVFileType.mp4
-private let VIDEO_BUFFER_DIMENSIONS = CGSize(width: 1920, height: 1080)
+// private let VIDEO_BUFFER_DIMENSIONS = CGSize(width: 1920, height: 1080)
 private let VIDEO_BITRATE = 10 * 1024 * 1024
 private let ORIENTATION = AVCaptureVideoOrientation.portrait
 
@@ -99,7 +99,9 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 		return videoDeviceInput.device.isFlashAvailable
 	}
 
-	private(set) var isRecording: Bool = false
+	var isRecording: Bool {
+		return videoWriter != nil
+	}
 
 
 	func initialize(delegate: CameraSessionViewDelegate, isPhoto: Bool, isFront: Bool) {
@@ -156,22 +158,19 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 			guard !self.isRecording else {
 				return
 			}
+			precondition(self.videoWriter == nil && self.videoWriterInput == nil && self.audioWriterInput == nil)
 			if UIDevice.current.isMultitaskingSupported {
 				self.backgroundRecordingID = UIApplication.shared.beginBackgroundTask(expirationHandler: nil)
 			}
-			self.prepareVideoFileWriter(toFileURL: fileURL)
-			if let videoWriter = self.videoWriter {
-				videoWriter.startWriting()
-				self.isRecording = true
-				DispatchQueue.main.async {
-					self.delegate?.cameraSessionViewDidStartRecording(self)
-				}
+			guard self.videoDeviceInput != nil && self.audioDeviceInput != nil else {
+				return
 			}
+			self.videoWriter = try! AVAssetWriter(url: fileURL, fileType: VIDEO_FILE_TYPE)
 		}
 	}
 
 
-	func stopRecording() {
+	func stopVideoRecording() {
 		queue.async {
 			guard self.isRecording else {
 				return
@@ -183,9 +182,10 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 				UIApplication.shared.endBackgroundTask(self.backgroundRecordingID)
 				self.backgroundRecordingID = UIBackgroundTaskIdentifier.invalid
 			}
-			self.isRecording = false
-			self.shutdownVideoFileWriter()
+			self.videoWriter = nil // buffer callback will start skipping, now we can shut everything down
 			videoWriter.finishWriting {
+				self.videoWriterInput = nil
+				self.audioWriterInput = nil
 				let error = videoWriter.status == .failed ? videoWriter.error : nil
 				DispatchQueue.main.async {
 					self.delegate?.cameraSessionView(self, didFinishRecordingTo: videoWriter.outputURL, error: error)
@@ -257,7 +257,6 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 	private var videoWriterInput: AVAssetWriterInput?
 	private var audioWriterInput: AVAssetWriterInput?
 	private var videoWriter: AVAssetWriter?
-	private var firstTimeStamp: CMTime?
 
 
 	// TODO: add .builtinTelelensCamera discovery
@@ -290,6 +289,9 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 
 	private func didSwitchPhotoVideoMode() {
 		queue.async {
+			guard !self.isRecording else {
+				return
+			}
 			self.configureSession()
 		}
 	}
@@ -297,10 +299,17 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 
 	private func didSwitchCameraPosition() {
 		queue.async {
+			guard !self.isRecording else {
+				return
+			}
 			if let videoDeviceInput = self.videoDeviceInput {
 				self.removeDeviceInputObservers()
 				self.session.removeInput(videoDeviceInput)
 				self.videoDeviceInput = nil
+			}
+			if let videoOutput = self.videoOutput { // it's important to reset the videoOutput too, for the orientation thing to work properly
+				self.session.removeOutput(videoOutput)
+				self.videoOutput = nil
 			}
 			self.configureSession()
 		}
@@ -457,21 +466,25 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 	}
 
 
-	func prepareVideoFileWriter(toFileURL fileURL: URL) {
+	private func prepareWriterInputs(forWidth width: Int, height: Int) {
 		precondition(!Thread.isMainThread)
-		precondition(videoWriter == nil && videoWriterInput == nil && audioWriterInput == nil)
-
-		let videoWriter = try! AVAssetWriter(url: fileURL, fileType: VIDEO_FILE_TYPE)
+		precondition(ORIENTATION == .portrait)
+		guard let videoWriter = videoWriter else {
+			preconditionFailure()
+		}
 
 		let videoSettings = [
 				AVVideoCodecKey: VIDEO_CODEC_TYPE,
-				AVVideoWidthKey: VIDEO_BUFFER_DIMENSIONS.width,
-				AVVideoHeightKey: VIDEO_BUFFER_DIMENSIONS.height,
+				AVVideoWidthKey: width,
+				AVVideoHeightKey: height,
 				AVVideoScalingModeKey : AVVideoScalingModeResizeAspectFill,
 				AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: VIDEO_BITRATE]
 			] as [String : Any]
 		let videoWriterInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
 		videoWriterInput.expectsMediaDataInRealTime = true
+		if width > height { // assumes portrait mode: fix the orientation
+			videoWriterInput.transform = CGAffineTransform(rotationAngle: CGFloat.pi / 2)
+		}
 		videoWriter.add(videoWriterInput)
 
 		let audioSettings = [
@@ -479,27 +492,13 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 				AVSampleRateKey: AUDIO_SAMPLING_RATE,
 				AVNumberOfChannelsKey: 1,
 				AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
-				//                        NSNumber numberWithInt: 96 ], AVEncoderBitRateKey
 			] as [String : Any]
 		let audioWriterInput = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
 		audioWriterInput.expectsMediaDataInRealTime = true
 		videoWriter.add(audioWriterInput)
 
-		self.videoWriter = videoWriter
 		self.videoWriterInput = videoWriterInput
 		self.audioWriterInput = audioWriterInput
-		self.firstTimeStamp = nil
-	}
-
-
-	func shutdownVideoFileWriter() {
-		precondition(!Thread.isMainThread)
-		precondition(!isRecording)
-		if videoWriter != nil {
-			self.videoWriter = nil
-			self.videoWriterInput = nil
-			self.audioWriterInput = nil
-		}
 	}
 
 
@@ -560,20 +559,41 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 
 	func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
 		// TODO: processing delegates
-		queue.sync {
-			guard let videoWriter = videoWriter, let videoWriterInput = videoWriterInput, let audioWriterInput = audioWriterInput, videoWriter.status == .writing else {
+		queue.async {
+
+			// 1. If we are not recording, just skip this cycle
+			guard let videoWriter = self.videoWriter else {
 				return
 			}
-			if firstTimeStamp == nil {
-				firstTimeStamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-				videoWriter.startSession(atSourceTime: firstTimeStamp!)
+
+			// 2. Recording enabled but the file writer hasn't started writing yet:
+			if videoWriter.status == .unknown {
+				precondition(self.videoWriterInput == nil && self.audioWriterInput == nil)
+				if let pixelBuf = CMSampleBufferGetImageBuffer(sampleBuffer) {
+					let width = CVPixelBufferGetWidth(pixelBuf)
+					let height = CVPixelBufferGetHeight(pixelBuf)
+					self.prepareWriterInputs(forWidth: width, height: height)
+					videoWriter.startWriting()
+					videoWriter.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
+					DispatchQueue.main.async {
+						print("Video recording started with \(width):\(height)")
+						self.delegate?.cameraSessionViewDidStartRecording(self)
+					}
+				}
 			}
+
+			// 3. Guard against failed initialization
+			guard let videoWriterInput = self.videoWriterInput, let audioWriterInput = self.audioWriterInput, videoWriter.status == .writing else {
+				return
+			}
+
+			// 4. Send the buffer to the writer chain
 			switch output {
-			case videoOutput:
+			case self.videoOutput:
 				if videoWriterInput.isReadyForMoreMediaData {
 					videoWriterInput.append(sampleBuffer)
 				}
-			case audioOutput:
+			case self.audioOutput:
 				if audioWriterInput.isReadyForMoreMediaData {
 					audioWriterInput.append(sampleBuffer)
 				}

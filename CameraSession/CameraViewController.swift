@@ -205,7 +205,7 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 		captureModeControl.isEnabled = false
 
 		if cameraSessionView.isRecording {
-			cameraSessionView.stopRecording()
+			cameraSessionView.stopVideoRecording()
 		}
 		else {
 			let outputFileName = NSUUID().uuidString
