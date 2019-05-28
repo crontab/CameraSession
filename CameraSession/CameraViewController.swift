@@ -1,3 +1,10 @@
+//
+//  CameraViewController.swift
+//
+//  Created by Hovik Melikyan on 26/05/2019.
+//  Copyright © 2019 Hovik Melikyan. All rights reserved.
+//
+
 
 import UIKit
 import AVFoundation
@@ -12,14 +19,15 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 			preconditionFailure()
 
 		case .configured:
-			self.cameraButton.isEnabled = cameraSessionView.hasBackAndFront
-			// TODO: enable the two below based on output object availability
-			self.recordButton.isEnabled = cameraSessionView.isVideo
-			self.photoButton.isEnabled = cameraSessionView.isPhoto
-			self.captureModeControl.isEnabled = true
-			self.captureModeControl.selectedSegmentIndex = cameraSessionView.isPhoto ? 0 : 1
-			self.zoomButton.isEnabled = cameraSessionView.hasZoom
-			self.zoomButton.isHidden = !cameraSessionView.hasZoom
+			cameraButton.isEnabled = cameraSessionView.hasBackAndFront
+			recordButton.isEnabled = cameraSessionView.isVideo
+			photoButton.isEnabled = cameraSessionView.isPhoto
+			captureModeControl.isEnabled = true
+			captureModeControl.selectedSegmentIndex = cameraSessionView.isPhoto ? 0 : 1
+			zoomButton.isEnabled = cameraSessionView.hasZoom
+			zoomButton.isHidden = !cameraSessionView.hasZoom
+			torchButton.isEnabled = cameraSessionView.hasTorch
+			torchButton.isHidden = !cameraSessionView.hasTorch
 			break
 
 		case .notAuthorized:
@@ -28,12 +36,12 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 			alertController.addAction(UIAlertAction(title: "Settings", style: .`default`, handler: { _ in
 				UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!, options: [:], completionHandler: nil)
 			}))
-			self.present(alertController, animated: true, completion: nil)
+			present(alertController, animated: true, completion: nil)
 
 		case let .configurationFailed(message):
 			let alertController = UIAlertController(title: "Camera", message: message, preferredStyle: .alert)
 			alertController.addAction(UIAlertAction(title: "OK", style: .cancel, handler: nil))
-			self.present(alertController, animated: true, completion: nil)
+			present(alertController, animated: true, completion: nil)
 		}
 	}
 
@@ -188,6 +196,11 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 	override func viewDidLoad() {
 		super.viewDidLoad()
 		disableAllControls()
+
+		zoomButton.layer.borderColor = zoomButton.tintColor.cgColor
+		zoomButton.layer.borderWidth = 1
+		zoomButton.layer.cornerRadius = 5
+
 		cameraSessionView.initialize(delegate: self, isPhoto: false, isFront: false)
 	}
 
@@ -198,6 +211,7 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 		photoButton.isEnabled = false
 		captureModeControl.isEnabled = false
 		zoomButton.isEnabled = false
+		torchButton.isEnabled = false
 	}
 
 
@@ -269,6 +283,13 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 
 	@IBAction func zoomAction(_ sender: Any) {
 		cameraSessionView.zoomLevel = cameraSessionView.zoomLevel == 1 ? 2 : 1
+	}
+
+
+	@IBOutlet weak var torchButton: UIButton!
+
+	@IBAction func torchAction(_ sender: Any) {
+		cameraSessionView.isTorchOn = !cameraSessionView.isTorchOn
 	}
 }
 

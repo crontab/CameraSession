@@ -10,9 +10,6 @@ import UIKit
 import AVFoundation
 
 
-// TODO: implement session interruption observers
-
-
 private let VIDEO_SESSION_PRESET = AVCaptureSession.Preset.hd1920x1080
 private let VIDEO_CODEC_TYPE = AVVideoCodecType.hevc
 private let AUDIO_FORMAT = Int(kAudioFormatMPEG4AAC)
@@ -29,8 +26,9 @@ protocol CameraSessionViewDelegate: class {
 	// Called after the session has been configured or reconfigured as a result of changes in input device, capture mode (photo vs. video). Can be used to e.g. enable UI controls that you should disable before making any changes in the configuration.
 	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCompleteConfigurationWithStatus status: CameraSessionView.Status)
 
-	// Optional. Called in response to assigning zoomLevel, which at this point will hold the real zoom level
+	// Optional. Called in response to assigning zoomLevel, which at this point will hold the real zoom level. Same for the torch.
 	func cameraSessionViewDidChangeZoomLevel(_ cameraSessionView: CameraSessionView)
+	func cameraSessionViewDidSwitchTorch(_ cameraSessionView: CameraSessionView)
 
 	// Called when photo data is available after the call to capturePhoto(). Normally you would get the data via photo.fileDataRepresentation. Note that this method can be called multiple times in case both raw and another format was requested, or if operating in bracket mode (currently neither is supported by CameraSessionView)
 	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCapturePhoto photo: AVCapturePhoto?, error: Error?)
@@ -59,6 +57,7 @@ protocol CameraSessionViewDelegate: class {
 extension CameraSessionViewDelegate {
 	// Default implementations of optional methods:
 	func cameraSessionViewDidChangeZoomLevel(_ cameraSessionView: CameraSessionView) {}
+	func cameraSessionViewDidSwitchTorch(_ cameraSessionView: CameraSessionView) {}
 	func cameraSessionViewWillCapturePhoto(_ cameraSessionView: CameraSessionView) {}
 	func cameraSessionView(_ cameraSessionView: CameraSessionView, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {}
 	func cameraSessionViewDidStartRecording(_ cameraSessionView: CameraSessionView) {}
@@ -105,9 +104,8 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 
 	var isFlashEnabled: Bool = true // actually means automatic or off
 
-	var hasFlash: Bool {
-		return videoDeviceInput.device.isFlashAvailable
-	}
+	private(set)
+	var hasFlash: Bool = false
 
 	var zoomLevel: CGFloat = 1 {
 		didSet {
@@ -121,7 +119,19 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 		return !isFront
 	}
 
+	var isTorchOn: Bool = false {
+		didSet {
+			if !isSettingTorch {
+				didSwitchTorch()
+			}
+		}
+	}
+
+	private(set)
+	var hasTorch: Bool = false
+
 	var isRecording: Bool {
+		// Is this thread safe? Hopefully. But not terribly important because normally you won't use this flag, everything should be done via delegates.
 		return videoWriter != nil
 	}
 
@@ -271,10 +281,10 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 	private var audioWriterInput: AVAssetWriterInput?
 	private var videoWriter: AVAssetWriter?
 
-	private var isSettingZoom: Bool = false // helps bypass didSet for zoomLevel
+	private var isSettingZoom: Bool = false // helps bypass didSet
+	private var isSettingTorch: Bool = false
 
 
-	// TODO: add .builtinTelelensCamera discovery
 	private let videoDeviceDiscoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .builtInDualCamera, .builtInTelephotoCamera], mediaType: .video, position: .unspecified)
 	private let audioDeviceDiscoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInMicrophone], mediaType: AVMediaType.audio, position: .unspecified)
 
@@ -349,6 +359,22 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 	}
 
 
+	private func didSwitchTorch() {
+		self.isSettingTorch = true
+		if let videoDeviceInput = self.videoDeviceInput {
+			self.trySwitchTorch()
+			self.isTorchOn = videoDeviceInput.device.torchMode == .on
+		}
+		else {
+			self.isTorchOn = false
+		}
+		self.isSettingTorch = false
+		DispatchQueue.main.async {
+			self.delegate?.cameraSessionViewDidSwitchTorch(self)
+		}
+	}
+
+
 	private func configureSession() {
 		precondition(!Thread.isMainThread)
 
@@ -385,13 +411,22 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 		precondition(!Thread.isMainThread)
 		if videoDeviceInput == nil {
 			do {
+				self.hasFlash = false
+				self.hasTorch = false
 				if let videoDevice = findMatchingVideoDevice() {
 					let videoDeviceInput = try AVCaptureDeviceInput(device: videoDevice)
 					if session.canAddInput(videoDeviceInput) {
 						session.addInput(videoDeviceInput)
 						self.videoDeviceInput = videoDeviceInput
+						self.hasFlash = videoDevice.isFlashAvailable
 						if self.hasZoom {
 							self.trySetZoomLevel()
+						}
+						self.hasTorch = videoDevice.hasTorch
+						if self.hasTorch {
+							queue.async {
+								self.trySwitchTorch()
+							}
 						}
 						addDeviceInputObservers()
 						DispatchQueue.main.async {
@@ -416,10 +451,24 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 	private func trySetZoomLevel() {
 		do {
 			try videoDeviceInput.device.lockForConfiguration()
-			videoDeviceInput.device.videoZoomFactor = self.zoomLevel
+			videoDeviceInput.device.videoZoomFactor = zoomLevel
 			videoDeviceInput.device.unlockForConfiguration()
 		} catch let error {
 			print("CameraSessionView error: \(error)")
+		}
+	}
+
+
+	private func trySwitchTorch() {
+		// Additional protection here: trySwitchTorch() is called asynchronously during reconfiguration of the input device, because otherwise it flashes and turns itself off for some reason.
+		if let videoDeviceInput = videoDeviceInput {
+			do {
+				try videoDeviceInput.device.lockForConfiguration()
+				videoDeviceInput.device.torchMode = isTorchOn ? .on : .off
+				videoDeviceInput.device.unlockForConfiguration()
+			} catch let error {
+				print("CameraSessionView error: \(error)")
+			}
 		}
 	}
 
