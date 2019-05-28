@@ -120,15 +120,58 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 	}
 
 
+	func cameraSessionView(_ cameraSessionView: CameraSessionView, wasInterruptedWithError: Error?) {
+		self.resumeButton.isHidden = false
+	}
+
+
+	func cameraSessionView(_ cameraSessionView: CameraSessionView, wasInterruptedWithReason reason: AVCaptureSession.InterruptionReason) {
+		var showResumeButton = false
+		if reason == .audioDeviceInUseByAnotherClient || reason == .videoDeviceInUseByAnotherClient {
+			showResumeButton = true
+		} else if reason == .videoDeviceNotAvailableWithMultipleForegroundApps {
+			// Fade-in a label to inform the user that the camera is unavailable.
+			cameraUnavailableLabel.alpha = 0
+			cameraUnavailableLabel.isHidden = false
+			UIView.animate(withDuration: 0.25) {
+				self.cameraUnavailableLabel.alpha = 1
+			}
+		} else if reason == .videoDeviceNotAvailableDueToSystemPressure {
+			print("CameraSessionView error: Session stopped running due to shutdown system pressure level.")
+		}
+		if showResumeButton {
+			// Fade-in a button to enable the user to try to resume the session running.
+			resumeButton.alpha = 0
+			resumeButton.isHidden = false
+			UIView.animate(withDuration: 0.25) {
+				self.resumeButton.alpha = 1
+			}
+		}
+	}
+
+
 	func cameraSessionView(_ cameraSessionView: CameraSessionView, didResumeInterruptedSessionWithResult result: Bool) {
-		if result {
+		if !result {
 			let alertController = UIAlertController(title: "Camera", message: "Unable to resume", preferredStyle: .alert)
 			let cancelAction = UIAlertAction(title: "OK", style: .cancel, handler: nil)
 			alertController.addAction(cancelAction)
 			self.present(alertController, animated: true, completion: nil)
 		}
 		else {
-			self.resumeButton.isHidden = true
+			if !resumeButton.isHidden {
+				UIView.animate(withDuration: 0.25, animations: {
+					self.resumeButton.alpha = 0
+				}, completion: { _ in
+					self.resumeButton.isHidden = true
+				})
+			}
+			if !cameraUnavailableLabel.isHidden {
+				UIView.animate(withDuration: 0.25, animations: {
+					self.cameraUnavailableLabel.alpha = 0
+				}, completion: { _ in
+					self.cameraUnavailableLabel.isHidden = true
+				})
+			}
 		}
 	}
 
