@@ -10,8 +10,8 @@ import UIKit
 import AVFoundation
 
 
-private let VIDEO_SESSION_PRESET = AVCaptureSession.Preset.hd1920x1080
-private let VIDEO_CODEC_TYPE = AVVideoCodecType.hevc
+private let BEST_VIDEO_CODEC_TYPE = AVVideoCodecType.hevc
+private let FALLBACK_VIDEO_CODE_TYPE = AVVideoCodecType.h264 // older devices
 private let AUDIO_FORMAT = Int(kAudioFormatMPEG4AAC)
 private let AUDIO_SAMPLING_RATE = 44100.0
 private let PHOTO_OUTPUT_CODEC_TYPE = AVVideoCodecType.jpeg
@@ -197,6 +197,9 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 			guard self.videoDeviceInput != nil && self.audioDeviceInput != nil else {
 				return
 			}
+			guard self.videoOutput != nil && self.audioOutput != nil else {
+				return
+			}
 			self.prepareWriterChain(fileURL: fileURL)
 		}
 	}
@@ -327,6 +330,7 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 			guard !self.isRecording else {
 				return
 			}
+			self.session.stopRunning()
 			if let videoDeviceInput = self.videoDeviceInput {
 				self.removeDeviceInputObservers()
 				self.session.removeInput(videoDeviceInput)
@@ -384,7 +388,7 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 
 		session.beginConfiguration()
 
-		session.sessionPreset = isPhoto ? .photo : VIDEO_SESSION_PRESET
+		session.sessionPreset = isPhoto ? .photo : .high
 
 		configureVideoInput()
 		configureAudioInput()
@@ -566,8 +570,10 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 
 		let videoWriter = try! AVAssetWriter(url: fileURL, fileType: VIDEO_FILE_TYPE)
 
+		let codec = videoOutput!.availableVideoCodecTypes.contains(BEST_VIDEO_CODEC_TYPE) ? BEST_VIDEO_CODEC_TYPE : FALLBACK_VIDEO_CODE_TYPE
+		print("Using", codec == BEST_VIDEO_CODEC_TYPE ? "h5" : "h4", "codec")
 		let videoSettings = [
-				AVVideoCodecKey: VIDEO_CODEC_TYPE,
+				AVVideoCodecKey: codec,
 				AVVideoWidthKey: VIDEO_BUFFER_DIMENSIONS.width,
 				AVVideoHeightKey: VIDEO_BUFFER_DIMENSIONS.height,
 				AVVideoScalingModeKey : AVVideoScalingModeResizeAspectFill,

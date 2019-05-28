@@ -97,7 +97,7 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 
 		if error != nil {
 			print("Movie file finishing error: \(String(describing: error))")
-			success = (((error! as NSError).userInfo[AVErrorRecordingSuccessfullyFinishedKey] as AnyObject).boolValue)!
+			success = ((error! as NSError).userInfo[AVErrorRecordingSuccessfullyFinishedKey] as AnyObject).boolValue ?? false
 		}
 
 		if success {
