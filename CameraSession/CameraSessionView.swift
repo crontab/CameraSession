@@ -29,6 +29,9 @@ protocol CameraSessionViewDelegate: class {
 	// Called after the session has been configured or reconfigured as a result of changes in input device, capture mode (photo vs. video). Can be used to e.g. enable UI controls that you should disable before making any changes in the configuration.
 	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCompleteConfigurationWithStatus status: CameraSessionView.Status)
 
+	// Optional. Called in response to assigning zoomLevel, which at this point will hold the real zoom level
+	func cameraSessionViewDidChangeZoomLevel(_ cameraSessionView: CameraSessionView)
+
 	// Called when photo data is available after the call to capturePhoto(). Normally you would get the data via photo.fileDataRepresentation. Note that this method can be called multiple times in case both raw and another format was requested, or if operating in bracket mode (currently neither is supported by CameraSessionView)
 	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCapturePhoto photo: AVCapturePhoto?, error: Error?)
 
@@ -55,6 +58,7 @@ protocol CameraSessionViewDelegate: class {
 
 extension CameraSessionViewDelegate {
 	// Default implementations of optional methods:
+	func cameraSessionViewDidChangeZoomLevel(_ cameraSessionView: CameraSessionView) {}
 	func cameraSessionViewWillCapturePhoto(_ cameraSessionView: CameraSessionView) {}
 	func cameraSessionView(_ cameraSessionView: CameraSessionView, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {}
 	func cameraSessionViewDidStartRecording(_ cameraSessionView: CameraSessionView) {}
@@ -103,6 +107,18 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 
 	var hasFlash: Bool {
 		return videoDeviceInput.device.isFlashAvailable
+	}
+
+	var zoomLevel: CGFloat = 1 {
+		didSet {
+			if !isSettingZoom {
+				didSetZoomLevel()
+			}
+		}
+	}
+
+	var hasZoom: Bool {
+		return !isFront
 	}
 
 	var isRecording: Bool {
@@ -255,9 +271,11 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 	private var audioWriterInput: AVAssetWriterInput?
 	private var videoWriter: AVAssetWriter?
 
+	private var isSettingZoom: Bool = false // helps bypass didSet for zoomLevel
+
 
 	// TODO: add .builtinTelelensCamera discovery
-	private let videoDeviceDiscoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .builtInDualCamera, .builtInTrueDepthCamera], mediaType: .video, position: .unspecified)
+	private let videoDeviceDiscoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .builtInDualCamera, .builtInTelephotoCamera], mediaType: .video, position: .unspecified)
 	private let audioDeviceDiscoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInMicrophone], mediaType: AVMediaType.audio, position: .unspecified)
 
 
@@ -313,6 +331,24 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 	}
 
 
+	private func didSetZoomLevel() {
+		queue.async {
+			self.isSettingZoom = true
+			if let videoDeviceInput = self.videoDeviceInput {
+				self.trySetZoomLevel()
+				self.zoomLevel = videoDeviceInput.device.videoZoomFactor
+			}
+			else {
+				self.zoomLevel = 1
+			}
+			self.isSettingZoom = false
+			DispatchQueue.main.async {
+				self.delegate?.cameraSessionViewDidChangeZoomLevel(self)
+			}
+		}
+	}
+
+
 	private func configureSession() {
 		precondition(!Thread.isMainThread)
 
@@ -354,6 +390,9 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 					if session.canAddInput(videoDeviceInput) {
 						session.addInput(videoDeviceInput)
 						self.videoDeviceInput = videoDeviceInput
+						if self.hasZoom {
+							self.trySetZoomLevel()
+						}
 						addDeviceInputObservers()
 						DispatchQueue.main.async {
 							self.videoPreviewLayer.connection?.videoOrientation = ORIENTATION
@@ -370,6 +409,17 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 				configurationFailed(message: "Couldn't create video device input: \(error)")
 				return
 			}
+		}
+	}
+
+
+	private func trySetZoomLevel() {
+		do {
+			try videoDeviceInput.device.lockForConfiguration()
+			videoDeviceInput.device.videoZoomFactor = self.zoomLevel
+			videoDeviceInput.device.unlockForConfiguration()
+		} catch let error {
+			print("CameraSessionView error: \(error)")
 		}
 	}
 

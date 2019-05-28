@@ -18,6 +18,8 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 			self.photoButton.isEnabled = cameraSessionView.isPhoto
 			self.captureModeControl.isEnabled = true
 			self.captureModeControl.selectedSegmentIndex = cameraSessionView.isPhoto ? 0 : 1
+			self.zoomButton.isEnabled = cameraSessionView.hasZoom
+			self.zoomButton.isHidden = !cameraSessionView.hasZoom
 			break
 
 		case .notAuthorized:
@@ -35,6 +37,10 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 		}
 	}
 
+
+	func cameraSessionViewDidChangeZoomLevel(_ cameraSessionView: CameraSessionView) {
+		zoomButton.setTitle("\(Int(cameraSessionView.zoomLevel))x", for: .normal)
+	}
 
 	func cameraSessionViewWillCapturePhoto(_ cameraSessionView: CameraSessionView) {
 		// Flash the screen to signal that CameraSessionView took a photo.
@@ -191,6 +197,7 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 		recordButton.isEnabled = false
 		photoButton.isEnabled = false
 		captureModeControl.isEnabled = false
+		zoomButton.isEnabled = false
 	}
 
 
@@ -255,6 +262,13 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 			let outputFilePath = (NSTemporaryDirectory() as NSString).appendingPathComponent((outputFileName as NSString).appendingPathExtension("mp4")!)
 			cameraSessionView.startVideoRecording(toFileURL: URL(fileURLWithPath: outputFilePath))
 		}
+	}
+
+
+	@IBOutlet weak var zoomButton: UIButton!
+
+	@IBAction func zoomAction(_ sender: Any) {
+		cameraSessionView.zoomLevel = cameraSessionView.zoomLevel == 1 ? 2 : 1
 	}
 }
 
