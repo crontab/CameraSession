@@ -537,7 +537,7 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 				// kCVPixelFormatType_420YpCbCr8BiPlanarFullRange if supported
 				videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA] as [String : Any]
 				videoOutput.alwaysDiscardsLateVideoFrames = true
-				videoOutput.setSampleBufferDelegate(self, queue: DispatchQueue.global(qos: .default))
+				videoOutput.setSampleBufferDelegate(self, queue: self.queue /* DispatchQueue.global(qos: .default) */)
 				self.videoOutput = videoOutput
 			}
 		}
@@ -656,43 +656,41 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 
 	func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
 		// TODO: processing delegates
-		queue.async {
 
-			// 1. If we are not recording, just skip this cycle
-			guard let videoWriter = self.videoWriter else {
-				return
-			}
+		// 1. If we are not recording, just skip this cycle
+		guard let videoWriter = self.videoWriter else {
+			return
+		}
 
-			// 2. Recording enabled but the file writer hasn't started writing yet:
-			if videoWriter.status == .unknown, let pixelBuf = CMSampleBufferGetImageBuffer(sampleBuffer) {
-				videoWriter.startWriting()
-				videoWriter.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
-				let width = CVPixelBufferGetWidth(pixelBuf)
-				let height = CVPixelBufferGetHeight(pixelBuf)
-				DispatchQueue.main.async {
-					print("Video recording started with \(width):\(height)")
-					self.delegate?.cameraSessionViewDidStartRecording(self)
-				}
+		// 2. Recording enabled but the file writer hasn't started writing yet:
+		if videoWriter.status == .unknown, let pixelBuf = CMSampleBufferGetImageBuffer(sampleBuffer) {
+			videoWriter.startWriting()
+			videoWriter.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
+			let width = CVPixelBufferGetWidth(pixelBuf)
+			let height = CVPixelBufferGetHeight(pixelBuf)
+			DispatchQueue.main.async {
+				print("Video recording started with \(width):\(height)")
+				self.delegate?.cameraSessionViewDidStartRecording(self)
 			}
+		}
 
-			// 3. Guard against failed initialization
-			guard let videoWriterInput = self.videoWriterInput, let audioWriterInput = self.audioWriterInput, videoWriter.status == .writing else {
-				return
-			}
+		// 3. Guard against failed initialization
+		guard let videoWriterInput = self.videoWriterInput, let audioWriterInput = self.audioWriterInput, videoWriter.status == .writing else {
+			return
+		}
 
-			// 4. Send the buffer to the writer chain
-			switch output {
-			case self.videoOutput:
-				if videoWriterInput.isReadyForMoreMediaData {
-					videoWriterInput.append(sampleBuffer)
-				}
-			case self.audioOutput:
-				if audioWriterInput.isReadyForMoreMediaData {
-					audioWriterInput.append(sampleBuffer)
-				}
-			default:
-				break
+		// 4. Send the buffer to the writer chain
+		switch output {
+		case self.videoOutput:
+			if videoWriterInput.isReadyForMoreMediaData {
+				videoWriterInput.append(sampleBuffer)
 			}
+		case self.audioOutput:
+			if audioWriterInput.isReadyForMoreMediaData {
+				audioWriterInput.append(sampleBuffer)
+			}
+		default:
+			break
 		}
 	}
 
