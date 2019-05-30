@@ -646,9 +646,6 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 	}
 
 
-	private var firstTs: CMTime?
-	private var firstIsVideo: Bool?
-
 	func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
 		// TODO: processing delegates
 
@@ -663,21 +660,12 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 
 		switch videoWriter.status {
 		case .unknown:
-			let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer)!
-			let isVideo = CMFormatDescriptionGetMediaType(formatDescription) == kCMMediaType_Video
-			let ts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-			if firstTs == nil {
-				firstTs = ts
-				firstIsVideo = isVideo
-			}
-			else if isVideo != firstIsVideo, let firstTs = firstTs {
-				let startTs = CMTimeCompare(firstTs, ts) >= 0 ? firstTs : ts
-				videoWriter.startWriting()
-				videoWriter.startSession(atSourceTime: startTs)
-				DispatchQueue.main.async {
-					self.delegate?.cameraSessionViewDidStartRecording(self)
-					print("Recording started")
-				}
+			let startTs = CMTimeMakeWithSeconds(CACurrentMediaTime(), preferredTimescale: 240) // CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+			videoWriter.startWriting()
+			videoWriter.startSession(atSourceTime: startTs)
+			DispatchQueue.main.async {
+				self.delegate?.cameraSessionViewDidStartRecording(self)
+				print("Recording started")
 			}
 
 		case .writing:
@@ -696,8 +684,6 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 			self.videoWriter = nil
 			self.videoWriterInput = nil
 			self.audioWriterInput = nil
-			firstIsVideo = nil
-			firstTs = nil
 			let error = videoWriter.status == .failed ? videoWriter.error : nil
 			DispatchQueue.main.async {
 				self.delegate?.cameraSessionView(self, didFinishRecordingTo: videoWriter.outputURL, error: error)
