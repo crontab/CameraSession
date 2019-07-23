@@ -10,6 +10,7 @@ import UIKit
 import AVFoundation
 
 
+private let VIDEO_CODEC_TYPE = AVVideoCodecType.hevc
 private let PHOTO_OUTPUT_CODEC_TYPE = AVVideoCodecType.jpeg
 private let ORIENTATION = AVCaptureVideoOrientation.portrait
 
@@ -180,19 +181,16 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOut
 
 	func startVideoRecording(toFileURL fileURL: URL) {
 		queue.async {
+			guard let videoOutput = self.videoOutput else {
+				preconditionFailure()
+			}
 			guard !self.isRecording else {
 				return
 			}
 			if UIDevice.current.isMultitaskingSupported {
 				self.backgroundRecordingID = UIApplication.shared.beginBackgroundTask(expirationHandler: nil)
 			}
-			guard self.videoDeviceInput != nil && self.audioDeviceInput != nil else {
-				return
-			}
-			guard self.videoOutput != nil else {
-				return
-			}
-			self.videoOutput!.startRecording(to: fileURL, recordingDelegate: self)
+			videoOutput.startRecording(to: fileURL, recordingDelegate: self)
 		}
 	}
 
@@ -504,6 +502,9 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOut
 					connection.videoOrientation = ORIENTATION
 					if connection.isVideoStabilizationSupported {
 						connection.preferredVideoStabilizationMode = .auto
+					}
+					if videoOutput.availableVideoCodecTypes.contains(VIDEO_CODEC_TYPE) {
+						videoOutput.setOutputSettings([AVVideoCodecKey: VIDEO_CODEC_TYPE], for: connection)
 					}
 				}
 				else {
