@@ -10,14 +10,7 @@ import UIKit
 import AVFoundation
 
 
-private let BEST_VIDEO_CODEC_TYPE = AVVideoCodecType.hevc
-private let FALLBACK_VIDEO_CODE_TYPE = AVVideoCodecType.h264 // older devices
-private let AUDIO_FORMAT = Int(kAudioFormatMPEG4AAC)
-private let AUDIO_SAMPLING_RATE = 44100.0
 private let PHOTO_OUTPUT_CODEC_TYPE = AVVideoCodecType.jpeg
-private let VIDEO_FILE_TYPE = AVFileType.mp4
-private let VIDEO_BUFFER_DIMENSIONS = CGSize(width: 1080, height: 1920)
-private let VIDEO_BITRATE = 10 * 1024 * 1024
 private let ORIENTATION = AVCaptureVideoOrientation.portrait
 
 
