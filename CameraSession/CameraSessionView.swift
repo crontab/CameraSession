@@ -132,7 +132,7 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOut
 
 	var isRecording: Bool {
 		// Is this thread safe? Hopefully. But not terribly important because normally you won't use this flag, everything should be done via delegates.
-		return videoOutput != nil
+		return videoOutput?.isRecording ?? false
 	}
 
 
