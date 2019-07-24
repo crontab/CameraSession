@@ -660,12 +660,15 @@ class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDa
 
 		switch videoWriter.status {
 		case .unknown:
-			let startTs = CMTimeMakeWithSeconds(CACurrentMediaTime(), preferredTimescale: 240) // CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-			videoWriter.startWriting()
-			videoWriter.startSession(atSourceTime: startTs)
-			DispatchQueue.main.async {
-				self.delegate?.cameraSessionViewDidStartRecording(self)
-				print("Recording started")
+			if output == self.videoOutput {
+				// let startTs = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+				let startTs = CMTimeMakeWithSeconds(CACurrentMediaTime(), preferredTimescale: 240)
+				videoWriter.startWriting()
+				videoWriter.startSession(atSourceTime: startTs)
+				DispatchQueue.main.async {
+					self.delegate?.cameraSessionViewDidStartRecording(self)
+					print("Recording started")
+				}
 			}
 
 		case .writing:
