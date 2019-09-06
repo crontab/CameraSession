@@ -20,10 +20,8 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 
 		case .configured:
 			cameraButton.isEnabled = cameraSessionView.hasBackAndFront
-			recordButton.isEnabled = cameraSessionView.isVideo
-			photoButton.isEnabled = cameraSessionView.isPhoto
-			captureModeControl.isEnabled = true
-			captureModeControl.selectedSegmentIndex = cameraSessionView.isPhoto ? 0 : 1
+			recordButton.isEnabled = true
+			photoButton.isEnabled = true
 			zoomButton.isEnabled = cameraSessionView.hasZoom
 			zoomButton.isHidden = !cameraSessionView.hasZoom
 			torchButton.isEnabled = cameraSessionView.hasTorch
@@ -129,7 +127,6 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 		// Only enable the ability to change camera if the device has more than one camera.
 		self.cameraButton.isEnabled = self.cameraSessionView.hasBackAndFront
 		self.recordButton.isEnabled = true
-		self.captureModeControl.isEnabled = true
 		self.recordButton.setImage(#imageLiteral(resourceName: "CaptureVideo"), for: [])
 	}
 
@@ -209,8 +206,6 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 		cameraButton.isEnabled = false
 		recordButton.isEnabled = false
 		photoButton.isEnabled = false
-		captureModeControl.isEnabled = false
-		zoomButton.isEnabled = false
 		torchButton.isEnabled = false
 	}
 
@@ -222,14 +217,6 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 		case photo = 0
 		case movie = 1
 	}
-
-	@IBOutlet private weak var captureModeControl: UISegmentedControl!
-
-	@IBAction private func toggleCaptureMode(_ captureModeControl: UISegmentedControl) {
-		disableAllControls()
-		cameraSessionView.isPhoto = captureModeControl.selectedSegmentIndex == CaptureMode.photo.rawValue
-	}
-
 
 	@IBOutlet private weak var cameraButton: UIButton!
 
@@ -266,7 +253,6 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 
 		cameraButton.isEnabled = false
 		recordButton.isEnabled = false
-		captureModeControl.isEnabled = false
 
 		if cameraSessionView.isRecording {
 			cameraSessionView.stopVideoRecording()

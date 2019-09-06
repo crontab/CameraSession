@@ -79,19 +79,6 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 	}
 
 
-	public var isPhoto: Bool = true {
-		didSet {
-			if status == .configured && oldValue != isPhoto {
-				didSwitchPhotoVideoMode()
-			}
-		}
-	}
-
-	public var isVideo: Bool {
-		get { return !isPhoto }
-		set { isPhoto = !newValue }
-	}
-
 	public var isFront: Bool = false {
 		didSet {
 			if status == .configured && oldValue != isFront {
@@ -143,7 +130,6 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 		precondition(Thread.isMainThread)
 
 		self.delegate = delegate
-		self.isPhoto = isPhoto
 		self.isFront = isFront
 
 		if session == nil {
@@ -326,16 +312,6 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 	}
 
 
-	private func didSwitchPhotoVideoMode() {
-		queue.async {
-			guard !self.isRecording else {
-				return
-			}
-			self.configureSession()
-		}
-	}
-
-
 	private func didSwitchCameraPosition() {
 		queue.async {
 			guard !self.isRecording else {
@@ -402,7 +378,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 
 		session.beginConfiguration()
 
-		session.sessionPreset = isPhoto ? .photo : .high
+		session.sessionPreset = .high
 
 		configureVideoInput()
 		configureAudioInput()
@@ -512,7 +488,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 
 	private func configureAudioInput() {
 		precondition(!Thread.isMainThread)
-		if isVideo && audioDeviceInput == nil {
+		if audioDeviceInput == nil {
 			do {
 				let audioDevice = AVCaptureDevice.default(for: .audio)
 				let audioDeviceInput = try AVCaptureDeviceInput(device: audioDevice!)
@@ -526,16 +502,12 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 				print("CameraSessionView error: Could not create audio device input: \(error)")
 			}
 		}
-		else if !isVideo, let audioDeviceInput = audioDeviceInput {
-			session.removeInput(audioDeviceInput)
-			self.audioDeviceInput = nil
-		}
 	}
 
 
 	private func configureVideoOutput() {
 		precondition(!Thread.isMainThread)
-		if isVideo && videoOutput == nil {
+		if videoOutput == nil {
 			let videoOutput = AVCaptureVideoDataOutput()
 			if session.canAddOutput(videoOutput) {
 				session.addOutput(videoOutput)
@@ -555,26 +527,18 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 				self.videoOutput = videoOutput
 			}
 		}
-		else if !isVideo, let videoOutput = videoOutput {
-			session.removeOutput(videoOutput)
-			self.videoOutput = nil
-		}
 	}
 
 
 	private func configureAudioOutput() {
 		precondition(!Thread.isMainThread)
-		if isVideo && audioOutput == nil {
+		if audioOutput == nil {
 			let audioOutput = AVCaptureAudioDataOutput()
 			if session.canAddOutput(audioOutput) {
 				audioOutput.setSampleBufferDelegate(self, queue: self.queue /* DispatchQueue.global(qos: .default) */)
 				session.addOutput(audioOutput)
 				self.audioOutput = audioOutput
 			}
-		}
-		else if !isVideo, let audioOutput = audioOutput {
-			session.removeOutput(audioOutput)
-			self.audioOutput = nil
 		}
 	}
 
@@ -615,7 +579,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 
 	private func configurePhotoOutput() {
 		precondition(!Thread.isMainThread)
-		if isPhoto && photoOutput == nil {
+		if photoOutput == nil {
 			let photoOutput = AVCapturePhotoOutput()
 			if session.canAddOutput(photoOutput) {
 				session.addOutput(photoOutput)
@@ -628,10 +592,6 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 				configurationFailed(message: "Could not add photo output to the session")
 				return
 			}
-		}
-		else if !isPhoto, let photoOutput = photoOutput {
-			session.removeOutput(photoOutput)
-			self.photoOutput = nil
 		}
 	}
 
