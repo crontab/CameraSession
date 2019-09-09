@@ -198,7 +198,7 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 		zoomButton.layer.borderWidth = 1
 		zoomButton.layer.cornerRadius = 5
 
-		cameraSessionView.initialize(delegate: self, isPhoto: false, isFront: false)
+		cameraSessionView.initialize(delegate: self, isFront: false)
 	}
 
 

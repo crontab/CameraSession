@@ -125,7 +125,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 	}
 
 
-	public func initialize(delegate: CameraSessionViewDelegate, isPhoto: Bool, isFront: Bool) {
+	public func initialize(delegate: CameraSessionViewDelegate, isFront: Bool) {
 		precondition(status == .undefined)
 		precondition(Thread.isMainThread)
 
