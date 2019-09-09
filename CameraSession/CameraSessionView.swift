@@ -547,7 +547,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 
 		let assetWriter = try! AVAssetWriter(url: fileURL, fileType: VIDEO_FILE_TYPE)
 
-		let codec = videoOutput!.availableVideoCodecTypes.contains(BEST_VIDEO_CODEC_TYPE) ? BEST_VIDEO_CODEC_TYPE : FALLBACK_VIDEO_CODE_TYPE
+		let codec = videoOutput!.availableVideoCodecTypesForAssetWriter(writingTo: VIDEO_FILE_TYPE).contains(BEST_VIDEO_CODEC_TYPE) ? BEST_VIDEO_CODEC_TYPE : FALLBACK_VIDEO_CODE_TYPE
 		print("Using", codec == BEST_VIDEO_CODEC_TYPE ? "h5" : "h4", "codec")
 		let videoSettings = [
 			AVVideoCodecKey: codec,
