@@ -565,7 +565,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 			AVFormatIDKey: AUDIO_FORMAT,
 			AVSampleRateKey: AUDIO_SAMPLING_RATE,
 			AVNumberOfChannelsKey: 1,
-			AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
+			// AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue // this is a iOS 12+ feature, though strangely the constants are available on iOS 11 too.
 			] as [String : Any]
 		let audioWriterInput = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
 		audioWriterInput.expectsMediaDataInRealTime = true
@@ -628,42 +628,63 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 	}
 
 
+	private var audioStartTs: CMTime? = nil
+	private var startTs: CMTime? = nil
+
 	public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
 		// TODO: processing delegates
 
-		// 1. If we are not recording, just skip this cycle
 		guard let assetWriter = self.assetWriter, let videoWriterInput = self.videoWriterInput, let audioWriterInput = self.audioWriterInput else {
 			return
 		}
 
-		guard CMSampleBufferDataIsReady(sampleBuffer) else {
-			return
-		}
+		let ts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+		let isAudio = output == self.audioOutput
+		let isVideo = output == self.videoOutput
 
 		switch assetWriter.status {
 		case .unknown:
-			if output == self.videoOutput {
+			// The idea with starting the recording is this:
+			//   - wait until the first audio buffer and remember its timestamp (Ta)
+			//   - tell the asset writer that the file start time will be Ta + 200ms
+			//   - start the recording, including the first audio buffer received
+			//   - skip video buffers whose timestamps are earlier than Ta
+			//
+			// The result will be that both audio and video recorded into the file will
+			// start slightly before the "official" start time of the file which will
+			// allow a smooth start of the playback. The 200ms delay comes from
+			// measurements on the slowest devices, such as iPhone 6 and 5s. On an Xs
+			// even 30ms is enough.
+			if isAudio {
+				precondition(startTs == nil && audioStartTs == nil)
+				audioStartTs = ts
+				startTs = CMTimeAdd(ts, CMTime(seconds: 0.2, preferredTimescale: ts.timescale))
 				assetWriter.startWriting()
-				assetWriter.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
+				assetWriter.startSession(atSourceTime: startTs!)
+				// print("A", CMTimeGetSeconds(CMTimeSubtract(ts, startTs!)))
+				audioWriterInput.append(sampleBuffer)
 				DispatchQueue.main.async {
 					self.delegate?.cameraSessionViewDidStartRecording(self)
-					print("Recording started")
 				}
 			}
 
 		case .writing:
-			if output == self.videoOutput {
-				if videoWriterInput.isReadyForMoreMediaData {
+			if isVideo {
+				if CMTimeCompare(ts, audioStartTs!) >= 0 && videoWriterInput.isReadyForMoreMediaData {
+					// print("V", CMTimeGetSeconds(CMTimeSubtract(ts, startTs!)))
 					videoWriterInput.append(sampleBuffer)
 				}
 			}
-			else if output == self.audioOutput {
+			else if isAudio {
 				if audioWriterInput.isReadyForMoreMediaData {
+					// print("A", CMTimeGetSeconds(CMTimeSubtract(ts, startTs!)))
 					audioWriterInput.append(sampleBuffer)
 				}
 			}
 
 		case .completed, .failed, .cancelled:
+			audioStartTs = nil
+			startTs = nil
 			self.assetWriter = nil
 			self.videoWriterInput = nil
 			self.audioWriterInput = nil
