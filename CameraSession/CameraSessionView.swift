@@ -121,7 +121,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 
 	public var isRecording: Bool {
 		// Is this thread safe? Hopefully. But not terribly important because normally you won't use this flag, everything should be done via delegates.
-		return videoWriter != nil
+		return assetWriter != nil
 	}
 
 
@@ -195,7 +195,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 			guard !self.isRecording else {
 				return
 			}
-			precondition(self.videoWriter == nil && self.videoWriterInput == nil && self.audioWriterInput == nil)
+			precondition(self.assetWriter == nil && self.videoWriterInput == nil && self.audioWriterInput == nil)
 			if UIDevice.current.isMultitaskingSupported {
 				self.backgroundRecordingID = UIApplication.shared.beginBackgroundTask(expirationHandler: nil)
 			}
@@ -212,7 +212,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 
 	public func stopVideoRecording() {
 		queue.async {
-			guard let videoWriter = self.videoWriter, let videoWriterInput = self.videoWriterInput, let audioWriterInput = self.audioWriterInput else {
+			guard let assetWriter = self.assetWriter, let videoWriterInput = self.videoWriterInput, let audioWriterInput = self.audioWriterInput else {
 				return
 			}
 			if self.backgroundRecordingID != UIBackgroundTaskIdentifier.invalid {
@@ -221,7 +221,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 			}
 			videoWriterInput.markAsFinished()
 			audioWriterInput.markAsFinished()
-			videoWriter.finishWriting {
+			assetWriter.finishWriting {
 			}
 		}
 	}
@@ -279,7 +279,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 	private var audioOutput: AVCaptureAudioDataOutput?
 	private var videoWriterInput: AVAssetWriterInput?
 	private var audioWriterInput: AVAssetWriterInput?
-	private var videoWriter: AVAssetWriter?
+	private var assetWriter: AVAssetWriter?
 
 	private var isSettingZoom: Bool = false // helps bypass didSet
 	private var isSettingTorch: Bool = false
@@ -546,7 +546,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 	private func prepareWriterChain(fileURL: URL) {
 		precondition(!Thread.isMainThread)
 
-		let videoWriter = try! AVAssetWriter(url: fileURL, fileType: VIDEO_FILE_TYPE)
+		let assetWriter = try! AVAssetWriter(url: fileURL, fileType: VIDEO_FILE_TYPE)
 
 		let codec = videoOutput!.availableVideoCodecTypes.contains(BEST_VIDEO_CODEC_TYPE) ? BEST_VIDEO_CODEC_TYPE : FALLBACK_VIDEO_CODE_TYPE
 		print("Using", codec == BEST_VIDEO_CODEC_TYPE ? "h5" : "h4", "codec")
@@ -559,7 +559,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 			] as [String : Any]
 		let videoWriterInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
 		videoWriterInput.expectsMediaDataInRealTime = true
-		videoWriter.add(videoWriterInput)
+		assetWriter.add(videoWriterInput)
 
 		let audioSettings = [
 			AVFormatIDKey: AUDIO_FORMAT,
@@ -569,11 +569,11 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 			] as [String : Any]
 		let audioWriterInput = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
 		audioWriterInput.expectsMediaDataInRealTime = true
-		videoWriter.add(audioWriterInput)
+		assetWriter.add(audioWriterInput)
 
 		self.videoWriterInput = videoWriterInput
 		self.audioWriterInput = audioWriterInput
-		self.videoWriter = videoWriter // order is important
+		self.assetWriter = assetWriter // order is important
 	}
 
 
@@ -632,7 +632,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 		// TODO: processing delegates
 
 		// 1. If we are not recording, just skip this cycle
-		guard let videoWriter = self.videoWriter, let videoWriterInput = self.videoWriterInput, let audioWriterInput = self.audioWriterInput else {
+		guard let assetWriter = self.assetWriter, let videoWriterInput = self.videoWriterInput, let audioWriterInput = self.audioWriterInput else {
 			return
 		}
 
@@ -640,13 +640,11 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 			return
 		}
 
-		switch videoWriter.status {
+		switch assetWriter.status {
 		case .unknown:
 			if output == self.videoOutput {
-				// let startTs = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-				let startTs = CMTimeMakeWithSeconds(CACurrentMediaTime(), preferredTimescale: 240)
-				videoWriter.startWriting()
-				videoWriter.startSession(atSourceTime: startTs)
+				assetWriter.startWriting()
+				assetWriter.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
 				DispatchQueue.main.async {
 					self.delegate?.cameraSessionViewDidStartRecording(self)
 					print("Recording started")
@@ -666,12 +664,12 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 			}
 
 		case .completed, .failed, .cancelled:
-			self.videoWriter = nil
+			self.assetWriter = nil
 			self.videoWriterInput = nil
 			self.audioWriterInput = nil
-			let error = videoWriter.status == .failed ? videoWriter.error : nil
+			let error = assetWriter.status == .failed ? assetWriter.error : nil
 			DispatchQueue.main.async {
-				self.delegate?.cameraSessionView(self, didFinishRecordingTo: videoWriter.outputURL, error: error)
+				self.delegate?.cameraSessionView(self, didFinishRecordingTo: assetWriter.outputURL, error: error)
 			}
 			break
 
