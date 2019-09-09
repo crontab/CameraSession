@@ -212,17 +212,16 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 
 	public func stopVideoRecording() {
 		queue.async {
-			guard let assetWriter = self.assetWriter, let videoWriterInput = self.videoWriterInput, let audioWriterInput = self.audioWriterInput else {
+			guard self.assetWriter != nil else {
 				return
 			}
-			if self.backgroundRecordingID != UIBackgroundTaskIdentifier.invalid {
-				UIApplication.shared.endBackgroundTask(self.backgroundRecordingID)
-				self.backgroundRecordingID = UIBackgroundTaskIdentifier.invalid
+			DispatchQueue.main.async {
+				if self.backgroundRecordingID != .invalid {
+					UIApplication.shared.endBackgroundTask(self.backgroundRecordingID)
+					self.backgroundRecordingID = .invalid
+				}
 			}
-			videoWriterInput.markAsFinished()
-			audioWriterInput.markAsFinished()
-			assetWriter.finishWriting {
-			}
+			self.audioWriterInput!.markAsFinished() // and let the video finish too before closing writing
 		}
 	}
 
@@ -628,8 +627,9 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 	}
 
 
-	private var audioStartTs: CMTime? = nil
-	private var startTs: CMTime? = nil
+	private var audioStartTs: CMTime?
+	private var startTs: CMTime?
+	private var lastAudioTs: CMTime?
 
 	public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
 		// TODO: processing delegates
@@ -656,28 +656,43 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 			// measurements on the slowest devices, such as iPhone 6 and 5s. On an Xs
 			// even 30ms is enough.
 			if isAudio {
-				precondition(startTs == nil && audioStartTs == nil)
+				precondition(startTs == nil && audioStartTs == nil && lastAudioTs == nil)
 				audioStartTs = ts
 				startTs = CMTimeAdd(ts, CMTime(seconds: 0.2, preferredTimescale: ts.timescale))
 				assetWriter.startWriting()
 				assetWriter.startSession(atSourceTime: startTs!)
+
 				// print("A", CMTimeGetSeconds(CMTimeSubtract(ts, startTs!)))
+				lastAudioTs = ts
 				audioWriterInput.append(sampleBuffer)
+
 				DispatchQueue.main.async {
 					self.delegate?.cameraSessionViewDidStartRecording(self)
 				}
 			}
 
 		case .writing:
+			// How we stop the recording:
+			//   - mark the audio input as finished (see stopVideoRecording())
+			//   - wait until the video timestamp catches up (takes about ~600ms)
+			//   - signal that video has also finished and also stop the file writer
 			if isVideo {
 				if CMTimeCompare(ts, audioStartTs!) >= 0 && videoWriterInput.isReadyForMoreMediaData {
 					// print("V", CMTimeGetSeconds(CMTimeSubtract(ts, startTs!)))
-					videoWriterInput.append(sampleBuffer)
+					if !audioWriterInput.isReadyForMoreMediaData && CMTimeCompare(ts, lastAudioTs!) > 0 {
+						videoWriterInput.markAsFinished()
+						assetWriter.finishWriting {
+						}
+					}
+					else {
+						videoWriterInput.append(sampleBuffer)
+					}
 				}
 			}
 			else if isAudio {
 				if audioWriterInput.isReadyForMoreMediaData {
 					// print("A", CMTimeGetSeconds(CMTimeSubtract(ts, startTs!)))
+					lastAudioTs = ts
 					audioWriterInput.append(sampleBuffer)
 				}
 			}
@@ -685,6 +700,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 		case .completed, .failed, .cancelled:
 			audioStartTs = nil
 			startTs = nil
+			lastAudioTs = nil
 			self.assetWriter = nil
 			self.videoWriterInput = nil
 			self.audioWriterInput = nil
