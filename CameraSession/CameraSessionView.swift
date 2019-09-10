@@ -687,7 +687,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 			if isVideo {
 				if CMTimeCompare(ts, audioStartTs!) >= 0 && videoWriterInput.isReadyForMoreMediaData {
 					// print("V", CMTimeGetSeconds(CMTimeSubtract(ts, startTs!)))
-					if !audioWriterInput.isReadyForMoreMediaData && CMTimeCompare(ts, lastAudioTs!) > 0 {
+					if !audioWriterInput.isReadyForMoreMediaData && CMTimeCompare(ts, CMTimeAdd(lastAudioTs!, CMTime(seconds: 0.05, preferredTimescale: ts.timescale))) >= 0 {
 						videoWriterInput.markAsFinished()
 						assetWriter.finishWriting {
 						}
