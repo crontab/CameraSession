@@ -650,84 +650,38 @@ public class CameraSession: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureVi
 	}
 
 
-	private var audioStartTs: CMTime?
 	private var startTs: CMTime?
-	private var lastAudioTs: CMTime?
 
 	public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
 
 		let ts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-		let isAudio = output == self.audioOutput
 		let isVideo = output == self.videoOutput
+		let isAudio = output == self.audioOutput
 
 		var sampleBuffer = sampleBuffer
 		if isVideo, let delegate = delegate {
 			sampleBuffer = delegate.cameraSession(self, didCaptureBuffer: sampleBuffer)
 		}
 
-		guard let assetWriter = self.assetWriter, let videoWriterInput = self.videoWriterInput, let audioWriterInput = self.audioWriterInput else {
+		guard let assetWriter = self.assetWriter else {
 			return
 		}
 
 		switch assetWriter.status {
 		case .unknown:
-			// The idea with starting the recording is this:
-			//   - wait until the first audio buffer and remember its timestamp (Ta)
-			//   - tell the asset writer that the file start time will be Ta + 200ms
-			//   - start the recording, including the first audio buffer received
-			//   - skip video buffers whose timestamps are earlier than Ta
-			//
-			// The result will be that both audio and video recorded into the file will
-			// start slightly before the "official" start time of the file which will
-			// allow a smooth start of the playback. The 200ms delay comes from
-			// measurements on the slowest devices, such as iPhone 6 and 5s. On an Xs
-			// even 30ms is enough.
-			if isAudio {
-				precondition(startTs == nil && audioStartTs == nil && lastAudioTs == nil)
-				audioStartTs = ts
-				startTs = CMTimeAdd(ts, CMTime(seconds: 0.2, preferredTimescale: ts.timescale))
-				assetWriter.startWriting()
-				assetWriter.startSession(atSourceTime: startTs!)
-
-				// print("A", CMTimeGetSeconds(CMTimeSubtract(ts, startTs!)))
-				lastAudioTs = ts
-				audioWriterInput.append(sampleBuffer)
-
-				DispatchQueue.main.async {
-					self.delegate?.cameraSessionDidStartRecording(self)
-				}
+			assetWriter.startWriting()
+			startTs = ts
+			assetWriter.startSession(atSourceTime: startTs!)
+			writeSampleBuffer(sampleBuffer, isVideo: isVideo, isAudio: isAudio)
+			DispatchQueue.main.async {
+				self.delegate?.cameraSessionDidStartRecording(self)
 			}
 
 		case .writing:
-			// How we stop the recording:
-			//   - mark the audio input as finished (see stopVideoRecording())
-			//   - wait until the video timestamp catches up (takes about ~600ms)
-			//   - signal that video has also finished and also stop the file writer
-			if isVideo {
-				if CMTimeCompare(ts, audioStartTs!) >= 0 && videoWriterInput.isReadyForMoreMediaData {
-					// print("V", CMTimeGetSeconds(CMTimeSubtract(ts, startTs!)))
-					if !audioWriterInput.isReadyForMoreMediaData && CMTimeCompare(ts, CMTimeAdd(lastAudioTs!, CMTime(seconds: 0.05, preferredTimescale: ts.timescale))) >= 0 {
-						videoWriterInput.markAsFinished()
-						assetWriter.finishWriting {
-						}
-					}
-					else {
-						videoWriterInput.append(sampleBuffer)
-					}
-				}
-			}
-			else if isAudio {
-				if audioWriterInput.isReadyForMoreMediaData {
-					// print("A", CMTimeGetSeconds(CMTimeSubtract(ts, startTs!)))
-					lastAudioTs = ts
-					audioWriterInput.append(sampleBuffer)
-				}
-			}
+			writeSampleBuffer(sampleBuffer, isVideo: isVideo, isAudio: isAudio)
 
 		case .completed, .failed, .cancelled:
-			audioStartTs = nil
 			startTs = nil
-			lastAudioTs = nil
 			self.assetWriter = nil
 			self.videoWriterInput = nil
 			self.audioWriterInput = nil
@@ -739,6 +693,31 @@ public class CameraSession: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureVi
 
 		@unknown default:
 			break
+		}
+	}
+
+
+	private func writeSampleBuffer(_ sampleBuffer: CMSampleBuffer, isVideo: Bool, isAudio: Bool) {
+		guard let assetWriter = self.assetWriter, let videoWriterInput = self.videoWriterInput, let audioWriterInput = self.audioWriterInput else {
+			return
+		}
+		// let ts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+		if isVideo {
+			if videoWriterInput.isReadyForMoreMediaData {
+				// print("V", CMTimeGetSeconds(CMTimeSubtract(ts, startTs!)))
+				videoWriterInput.append(sampleBuffer)
+				if !audioWriterInput.isReadyForMoreMediaData {
+					videoWriterInput.markAsFinished()
+					assetWriter.finishWriting {
+					}
+				}
+			}
+		}
+		else if isAudio {
+			if audioWriterInput.isReadyForMoreMediaData {
+				// print("A", CMTimeGetSeconds(CMTimeSubtract(ts, startTs!)))
+				audioWriterInput.append(sampleBuffer)
+			}
 		}
 	}
 
