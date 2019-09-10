@@ -650,16 +650,23 @@ public class CameraSession: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureVi
 	}
 
 
+	// - - -  CAPTURE
+
+	private enum MediaType {
+		case video
+		case audio
+		case unknown
+	}
+
 	private var startTs: CMTime?
 
 	public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
 
 		let ts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-		let isVideo = output == self.videoOutput
-		let isAudio = output == self.audioOutput
+		let mediaType: MediaType = output == self.videoOutput ? .video : (output == self.audioOutput ? .audio : .unknown)
 
 		var sampleBuffer = sampleBuffer
-		if isVideo, let delegate = delegate {
+		if mediaType == .video, let delegate = delegate {
 			sampleBuffer = delegate.cameraSession(self, didCaptureBuffer: sampleBuffer)
 		}
 
@@ -669,16 +676,18 @@ public class CameraSession: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureVi
 
 		switch assetWriter.status {
 		case .unknown:
-			assetWriter.startWriting()
-			startTs = ts
-			assetWriter.startSession(atSourceTime: startTs!)
-			writeSampleBuffer(sampleBuffer, isVideo: isVideo, isAudio: isAudio)
-			DispatchQueue.main.async {
-				self.delegate?.cameraSessionDidStartRecording(self)
+			if mediaType == .video {
+				assetWriter.startWriting()
+				startTs = CMTimeAdd(ts, CMTime(seconds: 0.1, preferredTimescale: ts.timescale))
+				assetWriter.startSession(atSourceTime: startTs!)
+				writeSampleBuffer(sampleBuffer, mediaType: mediaType)
+				DispatchQueue.main.async {
+					self.delegate?.cameraSessionDidStartRecording(self)
+				}
 			}
 
 		case .writing:
-			writeSampleBuffer(sampleBuffer, isVideo: isVideo, isAudio: isAudio)
+			writeSampleBuffer(sampleBuffer, mediaType: mediaType)
 
 		case .completed, .failed, .cancelled:
 			startTs = nil
@@ -697,12 +706,13 @@ public class CameraSession: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureVi
 	}
 
 
-	private func writeSampleBuffer(_ sampleBuffer: CMSampleBuffer, isVideo: Bool, isAudio: Bool) {
+	private func writeSampleBuffer(_ sampleBuffer: CMSampleBuffer, mediaType: MediaType) {
 		guard let assetWriter = self.assetWriter, let videoWriterInput = self.videoWriterInput, let audioWriterInput = self.audioWriterInput else {
 			return
 		}
 		// let ts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-		if isVideo {
+		switch mediaType {
+		case .video:
 			if videoWriterInput.isReadyForMoreMediaData {
 				// print("V", CMTimeGetSeconds(CMTimeSubtract(ts, startTs!)))
 				videoWriterInput.append(sampleBuffer)
@@ -712,12 +722,13 @@ public class CameraSession: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureVi
 					}
 				}
 			}
-		}
-		else if isAudio {
+		case .audio:
 			if audioWriterInput.isReadyForMoreMediaData {
 				// print("A", CMTimeGetSeconds(CMTimeSubtract(ts, startTs!)))
 				audioWriterInput.append(sampleBuffer)
 			}
+		case .unknown:
+			break
 		}
 	}
 
