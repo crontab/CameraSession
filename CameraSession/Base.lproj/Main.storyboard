@@ -18,7 +18,7 @@
                         <rect key="frame" x="0.0" y="0.0" width="414" height="896"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="3eR-Rn-XpZ" userLabel="Preview" customClass="CameraSessionView" customModule="CameraSession" customModuleProvider="target">
+                            <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="3eR-Rn-XpZ" customClass="CameraPreview" customModule="CameraSession" customModuleProvider="target">
                                 <rect key="frame" x="0.0" y="0.0" width="414" height="896"/>
                                 <color key="backgroundColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                 <gestureRecognizers/>
@@ -182,7 +182,7 @@
                     <nil key="simulatedStatusBarMetrics"/>
                     <connections>
                         <outlet property="cameraButton" destination="rUJ-G6-RPv" id="dAV-WS-N1p"/>
-                        <outlet property="cameraSessionView" destination="3eR-Rn-XpZ" id="e7I-nu-L6j"/>
+                        <outlet property="cameraPreview" destination="3eR-Rn-XpZ" id="zFH-fL-fbC"/>
                         <outlet property="cameraUnavailableLabel" destination="zf0-db-esM" id="P9W-lb-Pb8"/>
                         <outlet property="photoButton" destination="uCj-6P-mHF" id="Ha8-ua-hxy"/>
                         <outlet property="recordButton" destination="eRT-dK-6dM" id="iqk-en-NsW"/>

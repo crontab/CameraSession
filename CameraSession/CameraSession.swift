@@ -1,5 +1,5 @@
 //
-//  CameraSessionView.swift
+//  CameraSession.swift
 //
 //  Created by Hovik Melikyan on 26/05/2019.
 //  Copyright © 2019 Hovik Melikyan. All rights reserved.
@@ -22,55 +22,77 @@ private let VIDEO_BITRATE = 10 * 1024 * 1024
 private let ORIENTATION = AVCaptureVideoOrientation.portrait
 
 
-public protocol CameraSessionViewDelegate: class {
+
+public protocol CameraSessionDelegate: class {
 
 	// Called after the session has been configured or reconfigured as a result of changes in input device, capture mode (photo vs. video). Can be used to e.g. enable UI controls that you should disable before making any changes in the configuration.
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCompleteConfigurationWithStatus status: CameraSessionView.Status)
+	func cameraSession(_ cameraSession: CameraSession, didCompleteConfigurationWithStatus status: CameraSession.Status)
 
 	// Optional. Called in response to assigning zoomLevel, which at this point will hold the real zoom level. Same for the torch.
-	func cameraSessionViewDidChangeZoomLevel(_ cameraSessionView: CameraSessionView)
-	func cameraSessionViewDidSwitchTorch(_ cameraSessionView: CameraSessionView)
+	func cameraSessionDidChangeZoomLevel(_ cameraSession: CameraSession)
+	func cameraSessionDidSwitchTorch(_ cameraSession: CameraSession)
 
-	// Called when photo data is available after the call to capturePhoto(). Normally you would get the data via photo.fileDataRepresentation. Note that this method can be called multiple times in case both raw and another format was requested, or if operating in bracket mode (currently neither is supported by CameraSessionView)
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCapturePhoto photo: AVCapturePhoto?, error: Error?)
+	// Called when photo data is available after the call to capturePhoto(). Normally you would get the data via photo.fileDataRepresentation. Note that this method can be called multiple times in case both raw and another format was requested, or if operating in bracket mode (currently neither is supported by CameraSession)
+	func cameraSession(_ cameraSession: CameraSession, didCapturePhoto photo: AVCapturePhoto?, error: Error?)
 
 	// Optional; can be used to animate the capture, e.g. flash the screen or make sound
-	func cameraSessionViewWillCapturePhoto(_ cameraSessionView: CameraSessionView)
+	func cameraSessionWillCapturePhoto(_ cameraSession: CameraSession)
 
-	// Optional; called when all photo output formats have been delivered via cameraSessionView(_, didCapturePhoto:, error:)
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?)
+	// Optional; called when all photo output formats have been delivered via cameraSession(_, didCapturePhoto:, error:)
+	func cameraSession(_ cameraSession: CameraSession, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?)
 
 	// Optional
-	func cameraSessionViewDidStartRecording(_ cameraSessionView: CameraSessionView)
+	func cameraSessionDidStartRecording(_ cameraSession: CameraSession)
 
 	// Does what it says; note that it is possible to have multiple recording processess finishing if background recording is enabled on the system; therefore it is recommended to have a unique/random temp file in each call to startRecording().
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, didFinishRecordingTo fileUrl: URL, error: Error?)
+	func cameraSession(_ cameraSession: CameraSession, didFinishRecordingTo fileUrl: URL, error: Error?)
 
 	// Optional; called on runtime error or interruption. The UI can show a button that allows to resume the sesion manually using the resumeSession() call
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, wasInterruptedWithError: Error?)
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, wasInterruptedWithReason: AVCaptureSession.InterruptionReason)
+	func cameraSession(_ cameraSession: CameraSession, wasInterruptedWithError: Error?)
+	func cameraSession(_ cameraSession: CameraSession, wasInterruptedWithReason: AVCaptureSession.InterruptionReason)
 
 	// Optional; called in response to resumeInterruptedSession()
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, didResumeInterruptedSessionWithResult: Bool)
+	func cameraSession(_ cameraSession: CameraSession, didResumeInterruptedSessionWithResult: Bool)
+
+	// Optional; buffer-level processing e.g. for video effects. Can modify the buffer.
+	// NOTE: called on a non-GUI thread
+	func cameraSession(_ cameraSession: CameraSession, didCaptureBuffer sampleBuffer: CMSampleBuffer)
 }
 
 
-public extension CameraSessionViewDelegate {
+public extension CameraSessionDelegate {
 	// Default implementations of optional methods:
-	func cameraSessionViewDidChangeZoomLevel(_ cameraSessionView: CameraSessionView) {}
-	func cameraSessionViewDidSwitchTorch(_ cameraSessionView: CameraSessionView) {}
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCapturePhoto photo: AVCapturePhoto?, error: Error?) {}
-	func cameraSessionViewWillCapturePhoto(_ cameraSessionView: CameraSessionView) {}
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {}
-	func cameraSessionViewDidStartRecording(_ cameraSessionView: CameraSessionView) {}
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, didFinishRecordingTo fileUrl: URL, error: Error?) {}
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, wasInterruptedWithError: Error?) {}
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, wasInterruptedWithReason: AVCaptureSession.InterruptionReason) {}
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, didResumeInterruptedSessionWithResult: Bool) {}
+	func cameraSessionDidChangeZoomLevel(_ cameraSession: CameraSession) {}
+	func cameraSessionDidSwitchTorch(_ cameraSession: CameraSession) {}
+	func cameraSession(_ cameraSession: CameraSession, didCapturePhoto photo: AVCapturePhoto?, error: Error?) {}
+	func cameraSessionWillCapturePhoto(_ cameraSession: CameraSession) {}
+	func cameraSession(_ cameraSession: CameraSession, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {}
+	func cameraSessionDidStartRecording(_ cameraSession: CameraSession) {}
+	func cameraSession(_ cameraSession: CameraSession, didFinishRecordingTo fileUrl: URL, error: Error?) {}
+	func cameraSession(_ cameraSession: CameraSession, wasInterruptedWithError: Error?) {}
+	func cameraSession(_ cameraSession: CameraSession, wasInterruptedWithReason: AVCaptureSession.InterruptionReason) {}
+	func cameraSession(_ cameraSession: CameraSession, didResumeInterruptedSessionWithResult: Bool) {}
+	func cameraSession(_ cameraSession: CameraSession, didCaptureBuffer sampleBuffer: CMSampleBuffer) {}
 }
 
 
-public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate {
+
+public class CameraPreview: UIView {
+
+	override public class var layerClass: AnyClass { return AVCaptureVideoPreviewLayer.self }
+
+	var videoPreviewLayer: AVCaptureVideoPreviewLayer { return layer as! AVCaptureVideoPreviewLayer }
+
+	public func setCameraSession(_ cameraSession: CameraSession) {
+		videoPreviewLayer.session = cameraSession.session
+		videoPreviewLayer.videoGravity = .resizeAspectFill
+		videoPreviewLayer.connection?.videoOrientation = ORIENTATION
+	}
+}
+
+
+
+public class CameraSession: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate {
 
 	public enum Status: Equatable {
 		case undefined
@@ -132,15 +154,14 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 	var videoCodec: AVVideoCodecType?
 
 
-	public func initialize(delegate: CameraSessionViewDelegate, isFront: Bool) {
+	public init(delegate: CameraSessionDelegate, isFront: Bool) {
+		super.init()
+
 		precondition(status == .undefined)
 		precondition(Thread.isMainThread)
 
 		self.delegate = delegate
 		self.isFront = isFront
-
-		videoPreviewLayer.session = session
-		videoPreviewLayer.videoGravity = .resizeAspectFill
 
 		checkAuthorization() // runs on main thread, blocks the session thread if UI is involved
 
@@ -153,7 +174,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 	deinit {
 		removeAllObservers()
 #if DEBUG
-		print("CameraSessionView: deinit")
+		print("CameraSession: deinit")
 #endif
 	}
 
@@ -231,8 +252,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 	}
 
 
-	public func focus(with focusMode: AVCaptureDevice.FocusMode, exposureMode: AVCaptureDevice.ExposureMode, atPoint point: CGPoint,  monitorSubjectAreaChange: Bool) {
-		let devicePoint = videoPreviewLayer.captureDevicePointConverted(fromLayerPoint: point)
+	public func focus(with focusMode: AVCaptureDevice.FocusMode, exposureMode: AVCaptureDevice.ExposureMode, atDevicePoint devicePoint: CGPoint,  monitorSubjectAreaChange: Bool) {
 		queue.async {
 			let device = self.videoDeviceInput.device
 			do {
@@ -248,7 +268,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 				device.isSubjectAreaChangeMonitoringEnabled = monitorSubjectAreaChange
 				device.unlockForConfiguration()
 			} catch {
-				print("CameraSessionView error: Could not lock device for configuration: \(error)")
+				print("CameraSession error: Could not lock device for configuration: \(error)")
 			}
 		}
 	}
@@ -259,19 +279,16 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 			self.session.startRunning()
 			let result = self.session.isRunning
 			DispatchQueue.main.async {
-				self.delegate?.cameraSessionView(self, didResumeInterruptedSessionWithResult: result)
+				self.delegate?.cameraSession(self, didResumeInterruptedSessionWithResult: result)
 			}
 		}
 	}
 
 
-	override public class var layerClass: AnyClass { return AVCaptureVideoPreviewLayer.self }
-	private var videoPreviewLayer: AVCaptureVideoPreviewLayer { return layer as! AVCaptureVideoPreviewLayer }
+	fileprivate var session = AVCaptureSession()
+	private var queue = DispatchQueue(label: "com.melikyan.cameraSession.queue")
 
-	private var session = AVCaptureSession()
-	private var queue = DispatchQueue(label: "com.melikyan.cameraSessionView.queue")
-
-	private weak var delegate: CameraSessionViewDelegate?
+	private weak var delegate: CameraSessionDelegate?
 	private var status: Status = .undefined
 
 	private var videoDeviceInput: AVCaptureDeviceInput!
@@ -351,7 +368,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 			}
 			self.isSettingZoom = false
 			DispatchQueue.main.async {
-				self.delegate?.cameraSessionViewDidChangeZoomLevel(self)
+				self.delegate?.cameraSessionDidChangeZoomLevel(self)
 			}
 		}
 	}
@@ -368,7 +385,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 		}
 		self.isSettingTorch = false
 		DispatchQueue.main.async {
-			self.delegate?.cameraSessionViewDidSwitchTorch(self)
+			self.delegate?.cameraSessionDidSwitchTorch(self)
 		}
 	}
 
@@ -400,7 +417,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 		session.startRunning()
 
 		DispatchQueue.main.async {
-			self.delegate?.cameraSessionView(self, didCompleteConfigurationWithStatus: self.status)
+			self.delegate?.cameraSession(self, didCompleteConfigurationWithStatus: self.status)
 		}
 	}
 
@@ -427,9 +444,6 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 							}
 						}
 						addDeviceInputObservers()
-						DispatchQueue.main.async {
-							self.videoPreviewLayer.connection?.videoOrientation = ORIENTATION
-						}
 					} else {
 						configurationFailed(message: "Couldn't add video device input to the session.")
 						return
@@ -452,7 +466,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 			videoDeviceInput.device.videoZoomFactor = zoomLevel
 			videoDeviceInput.device.unlockForConfiguration()
 		} catch let error {
-			print("CameraSessionView error: \(error)")
+			print("CameraSession error: \(error)")
 		}
 	}
 
@@ -465,7 +479,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 				videoDeviceInput.device.torchMode = isTorchOn ? .on : .off
 				videoDeviceInput.device.unlockForConfiguration()
 			} catch let error {
-				print("CameraSessionView error: \(error)")
+				print("CameraSession error: \(error)")
 			}
 		}
 	}
@@ -500,10 +514,10 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 					session.addInput(audioDeviceInput)
 					self.audioDeviceInput = audioDeviceInput
 				} else {
-					print("CameraSessionView error: Could not add audio device input to the session")
+					print("CameraSession error: Could not add audio device input to the session")
 				}
 			} catch {
-				print("CameraSessionView error: Could not create audio device input: \(error)")
+				print("CameraSession error: Could not create audio device input: \(error)")
 			}
 		}
 	}
@@ -522,7 +536,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 					}
 				}
 				else {
-					print("CameraSessionView error: no video output connection")
+					print("CameraSession error: no video output connection")
 				}
 				// kCVPixelFormatType_420YpCbCr8BiPlanarFullRange if supported
 				videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA] as [String : Any]
@@ -607,7 +621,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 		status = .configurationFailed(message: message)
 		session.commitConfiguration()
 		DispatchQueue.main.async {
-			self.delegate?.cameraSessionView(self, didCompleteConfigurationWithStatus: self.status)
+			self.delegate?.cameraSession(self, didCompleteConfigurationWithStatus: self.status)
 		}
 	}
 
@@ -616,21 +630,21 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 
 	public func photoOutput(_ output: AVCapturePhotoOutput, willCapturePhotoFor resolvedSettings: AVCaptureResolvedPhotoSettings) {
 		DispatchQueue.main.async {
-			self.delegate?.cameraSessionViewWillCapturePhoto(self)
+			self.delegate?.cameraSessionWillCapturePhoto(self)
 		}
 	}
 
 
 	public func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
 		DispatchQueue.main.async {
-			self.delegate?.cameraSessionView(self, didCapturePhoto: photo, error: error)
+			self.delegate?.cameraSession(self, didCapturePhoto: photo, error: error)
 		}
 	}
 
 
 	public func photoOutput(_ output: AVCapturePhotoOutput, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {
 		DispatchQueue.main.async {
-			self.delegate?.cameraSessionView(self, didFinishCaptureFor: resolvedSettings, error: error)
+			self.delegate?.cameraSession(self, didFinishCaptureFor: resolvedSettings, error: error)
 		}
 	}
 
@@ -640,15 +654,18 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 	private var lastAudioTs: CMTime?
 
 	public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-		// TODO: processing delegates
-
-		guard let assetWriter = self.assetWriter, let videoWriterInput = self.videoWriterInput, let audioWriterInput = self.audioWriterInput else {
-			return
-		}
 
 		let ts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
 		let isAudio = output == self.audioOutput
 		let isVideo = output == self.videoOutput
+
+		if isVideo {
+			delegate?.cameraSession(self, didCaptureBuffer: sampleBuffer)
+		}
+
+		guard let assetWriter = self.assetWriter, let videoWriterInput = self.videoWriterInput, let audioWriterInput = self.audioWriterInput else {
+			return
+		}
 
 		switch assetWriter.status {
 		case .unknown:
@@ -675,7 +692,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 				audioWriterInput.append(sampleBuffer)
 
 				DispatchQueue.main.async {
-					self.delegate?.cameraSessionViewDidStartRecording(self)
+					self.delegate?.cameraSessionDidStartRecording(self)
 				}
 			}
 
@@ -714,7 +731,7 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 			self.audioWriterInput = nil
 			let error = assetWriter.status == .failed ? assetWriter.error : nil
 			DispatchQueue.main.async {
-				self.delegate?.cameraSessionView(self, didFinishRecordingTo: assetWriter.outputURL, error: error)
+				self.delegate?.cameraSession(self, didFinishRecordingTo: assetWriter.outputURL, error: error)
 			}
 			break
 
@@ -753,14 +770,15 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 
 
 	@objc func subjectAreaDidChange(notification: NSNotification) {
-		let point = CGPoint(x: bounds.midX, y: bounds.midY)
-		focus(with: .continuousAutoFocus, exposureMode: .continuousAutoExposure, atPoint: point, monitorSubjectAreaChange: false)
+		// TODO: this should move to CameraPreview
+//		let point = CGPoint(x: bounds.midX, y: bounds.midY)
+//		focus(with: .continuousAutoFocus, exposureMode: .continuousAutoExposure, atPoint: point, monitorSubjectAreaChange: false)
 	}
 
 
 	@objc func sessionRuntimeError(notification: NSNotification) {
 		guard let error = notification.userInfo?[AVCaptureSessionErrorKey] as? AVError else { return }
-		delegate?.cameraSessionView(self, wasInterruptedWithError: error)
+		delegate?.cameraSession(self, wasInterruptedWithError: error)
 	}
 
 
@@ -768,15 +786,15 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 		if let userInfoValue = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as AnyObject?,
 			let reasonIntegerValue = userInfoValue.integerValue,
 			let reason = AVCaptureSession.InterruptionReason(rawValue: reasonIntegerValue) {
-			print("CameraSessionView error: Capture session was interrupted with reason \(reason.rawValue)")
-			delegate?.cameraSessionView(self, wasInterruptedWithReason: reason)
+			print("CameraSession error: Capture session was interrupted with reason \(reason.rawValue)")
+			delegate?.cameraSession(self, wasInterruptedWithReason: reason)
 		}
 	}
 
 
 	@objc func sessionInterruptionEnded(notification: NSNotification) {
-		print("CameraSessionView error: Capture session interruption ended")
-		delegate?.cameraSessionView(self, didResumeInterruptedSessionWithResult: true)
+		print("CameraSession error: Capture session interruption ended")
+		delegate?.cameraSession(self, didResumeInterruptedSessionWithResult: true)
 	}
 }
 

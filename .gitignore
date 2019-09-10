@@ -1,11 +1,23 @@
-# See LICENSE folder for this sample’s licensing information.
-#
-# Apple sample code gitignore configuration.
-
-# Finder
 .DS_Store
-
-# Xcode - User files
-xcuserdata/
-**/*.xcodeproj/project.xcworkspace
-**/*.playground/playground.xcworkspace
+build/
+DerivedData
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata
+xcshareddata
+*.xcworkspace
+*.xccheckout
+*.moved-aside
+*.xcuserstate
+*.xcscmblueprint
+*.hmap
+*.ipa
+Pods/
+Settings.bundle/ThirdPartyCode.plist
+*.xctimeline
