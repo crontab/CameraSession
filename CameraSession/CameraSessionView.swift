@@ -16,7 +16,8 @@ private let AUDIO_FORMAT = Int(kAudioFormatMPEG4AAC)
 private let AUDIO_SAMPLING_RATE = 44100.0
 private let PHOTO_OUTPUT_CODEC_TYPE = AVVideoCodecType.jpeg
 private let VIDEO_FILE_TYPE = AVFileType.mp4
-private let VIDEO_BUFFER_DIMENSIONS = CGSize(width: 1080, height: 1920)
+private let BEST_VIDEO_DIMENSIONS = CGSize(width: 1080, height: 1920)
+private let FALLBACK_VIDEO_DIMENSIONS = CGSize(width: 720, height: 1280)
 private let VIDEO_BITRATE = 10 * 1024 * 1024
 private let ORIENTATION = AVCaptureVideoOrientation.portrait
 
@@ -123,6 +124,12 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 		// Is this thread safe? Hopefully. But not terribly important because normally you won't use this flag, everything should be done via delegates.
 		return assetWriter != nil
 	}
+
+	public private(set)
+	var videoDimensions: CGSize?
+
+	public private(set)
+	var videoCodec: AVVideoCodecType?
 
 
 	public func initialize(delegate: CameraSessionViewDelegate, isFront: Bool) {
@@ -522,6 +529,11 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 				videoOutput.alwaysDiscardsLateVideoFrames = true
 				videoOutput.setSampleBufferDelegate(self, queue: self.queue /* DispatchQueue.global(qos: .default) */)
 				self.videoOutput = videoOutput
+
+				let useBest = videoOutput.availableVideoCodecTypesForAssetWriter(writingTo: VIDEO_FILE_TYPE).contains(BEST_VIDEO_CODEC_TYPE)
+				print("CameraSession: using \(useBest ? "best" : "fallback") codec and dimensions")
+				self.videoCodec = useBest ? BEST_VIDEO_CODEC_TYPE : FALLBACK_VIDEO_CODE_TYPE
+				self.videoDimensions = useBest ? BEST_VIDEO_DIMENSIONS : FALLBACK_VIDEO_DIMENSIONS
 			}
 		}
 	}
@@ -545,12 +557,10 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 
 		let assetWriter = try! AVAssetWriter(url: fileURL, fileType: VIDEO_FILE_TYPE)
 
-		let codec = videoOutput!.availableVideoCodecTypesForAssetWriter(writingTo: VIDEO_FILE_TYPE).contains(BEST_VIDEO_CODEC_TYPE) ? BEST_VIDEO_CODEC_TYPE : FALLBACK_VIDEO_CODE_TYPE
-		print("Using", codec == BEST_VIDEO_CODEC_TYPE ? "h5" : "h4", "codec")
 		let videoSettings = [
-			AVVideoCodecKey: codec,
-			AVVideoWidthKey: VIDEO_BUFFER_DIMENSIONS.width,
-			AVVideoHeightKey: VIDEO_BUFFER_DIMENSIONS.height,
+			AVVideoCodecKey: videoCodec!,
+			AVVideoWidthKey: videoDimensions!.width,
+			AVVideoHeightKey: videoDimensions!.height,
 			AVVideoScalingModeKey : AVVideoScalingModeResizeAspectFill,
 			AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: VIDEO_BITRATE]
 			] as [String : Any]
