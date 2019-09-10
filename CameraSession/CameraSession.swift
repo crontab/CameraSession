@@ -533,7 +533,7 @@ public class CameraSession: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureVi
 				if let connection = videoOutput.connection(with: .video) {
 					connection.videoOrientation = ORIENTATION
 					if connection.isVideoStabilizationSupported {
-						connection.preferredVideoStabilizationMode = .auto
+						connection.preferredVideoStabilizationMode = .off
 					}
 				}
 				else {
