@@ -132,15 +132,8 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 		self.delegate = delegate
 		self.isFront = isFront
 
-		if session == nil {
-			session = AVCaptureSession()
-			videoPreviewLayer.session = session
-			videoPreviewLayer.videoGravity = .resizeAspectFill
-		}
-
-		if queue == nil {
-			queue = DispatchQueue(label: String(describing: self))
-		}
+		videoPreviewLayer.session = session
+		videoPreviewLayer.videoGravity = .resizeAspectFill
 
 		checkAuthorization() // runs on main thread, blocks the session thread if UI is involved
 
@@ -152,6 +145,9 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 
 	deinit {
 		removeAllObservers()
+#if DEBUG
+		print("CameraSessionView: deinit")
+#endif
 	}
 
 
@@ -166,7 +162,9 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 	public func stopSession(completion: (() -> Void)? = nil) {
 		queue.async {
 			self.session.stopRunning()
-			completion?()
+			DispatchQueue.main.async {
+				completion?()
+			}
 		}
 	}
 
@@ -263,8 +261,8 @@ public class CameraSessionView: UIView, AVCapturePhotoCaptureDelegate, AVCapture
 	override public class var layerClass: AnyClass { return AVCaptureVideoPreviewLayer.self }
 	private var videoPreviewLayer: AVCaptureVideoPreviewLayer { return layer as! AVCaptureVideoPreviewLayer }
 
-	private var session: AVCaptureSession!
-	private var queue: DispatchQueue!
+	private var session = AVCaptureSession()
+	private var queue = DispatchQueue(label: "com.melikyan.cameraSessionView.queue")
 
 	private weak var delegate: CameraSessionViewDelegate?
 	private var status: Status = .undefined
