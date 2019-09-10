@@ -64,29 +64,6 @@ class VideoEffects {
 	}
 
 
-//	func applyLookupEffect(on sampleBuffer: CMSampleBuffer) -> (CMSampleBuffer, MTIImage)? {
-//
-//		guard let pixelBuffer: CVPixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
-//			return nil
-//		}
-//
-//		// Apply effect
-//		let inputImage = MTIImage(cvPixelBuffer: pixelBuffer, alphaType: .alphaIsOne)
-//		colorLookupFilter.inputImage = inputImage
-//		guard let outputImage = colorLookupFilter.outputImage?.withCachePolicy(.persistent) else {
-//			preconditionFailure()
-//		}
-//
-//		// Render output image to pixelBuffer
-//		var outputPixelBuffer : CVPixelBuffer?
-//		let status = CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, &outputPixelBuffer)
-//		precondition(status == kCVReturnSuccess)
-//		try! context.render(outputImage, to: outputPixelBuffer!)
-//
-//		return (SampleBufferByReplacingImageBuffer(sampleBuffer: sampleBuffer, imageBuffer: outputPixelBuffer!), outputImage)
-//	}
-
-
 	func applyEffect(on sampleBuffer: CMSampleBuffer) -> MTIImage? {
 		guard let pixelBuffer: CVPixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
 			return nil
@@ -94,6 +71,15 @@ class VideoEffects {
 		let inputImage = MTIImage(cvPixelBuffer: pixelBuffer, alphaType: .alphaIsOne)
 		colorLookupFilter.inputImage = inputImage
 		return colorLookupFilter.outputImage?.withCachePolicy(.persistent)
+	}
+
+
+	func replaceSampleBuffer(_ sampleBuffer: CMSampleBuffer, withImage outputImage: MTIImage) -> CMSampleBuffer {
+		var outputPixelBuffer : CVPixelBuffer?
+		let status = CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, &outputPixelBuffer)
+		precondition(status == kCVReturnSuccess)
+		try! context.render(outputImage, to: outputPixelBuffer!)
+		return SampleBufferByReplacingImageBuffer(sampleBuffer: sampleBuffer, imageBuffer: outputPixelBuffer!)
 	}
 
 

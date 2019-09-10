@@ -7,8 +7,8 @@
 
 
 import UIKit
-import AVFoundation
 import Photos
+import MetalPetal
 
 
 class CameraViewController: UIViewController, CameraSessionDelegate {
@@ -26,6 +26,9 @@ class CameraViewController: UIViewController, CameraSessionDelegate {
 			zoomButton.isHidden = !cameraSession.hasZoom
 			torchButton.isEnabled = cameraSession.hasTorch
 			torchButton.isHidden = !cameraSession.hasTorch
+			if videoEffects == nil {
+				videoEffects = VideoEffects(dimensions: cameraSession.videoDimensions!, initialFilterType: .monochrome)
+			}
 			break
 
 		case .notAuthorized:
@@ -187,6 +190,19 @@ class CameraViewController: UIViewController, CameraSessionDelegate {
 	}
 
 
+	func cameraSession(_ cameraSession: CameraSession, didCaptureBuffer sampleBuffer: CMSampleBuffer) -> CMSampleBuffer {
+		if let outputImage = videoEffects.applyEffect(on: sampleBuffer) {
+			DispatchQueue.main.async {
+				self.cameraPreview.image = outputImage
+			}
+			return videoEffects.replaceSampleBuffer(sampleBuffer, withImage: outputImage)
+		}
+		else {
+			return sampleBuffer
+		}
+	}
+
+
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 
@@ -198,8 +214,8 @@ class CameraViewController: UIViewController, CameraSessionDelegate {
 		zoomButton.layer.borderWidth = 1
 		zoomButton.layer.cornerRadius = 5
 
+		cameraPreview.resizingMode = .aspectFill
 		cameraSession = CameraSession(delegate: self, isFront: false)
-		cameraPreview.setCameraSession(cameraSession)
 	}
 
 
@@ -211,8 +227,9 @@ class CameraViewController: UIViewController, CameraSessionDelegate {
 	}
 
 
-	@IBOutlet private weak var cameraPreview: CameraPreview!
+	@IBOutlet private weak var cameraPreview: MTIImageView!
 	private var cameraSession: CameraSession!
+	private var videoEffects: VideoEffects!
 
 
 	private enum CaptureMode: Int {
@@ -231,8 +248,8 @@ class CameraViewController: UIViewController, CameraSessionDelegate {
 
 
 	@IBAction private func focusAndExposeTap(_ gestureRecognizer: UITapGestureRecognizer) {
-		let devicePoint = cameraPreview.videoPreviewLayer.captureDevicePointConverted(fromLayerPoint: gestureRecognizer.location(in: cameraPreview))
-		cameraSession.focus(with: .autoFocus, exposureMode: .autoExpose, atDevicePoint: devicePoint, monitorSubjectAreaChange: true)
+//		let devicePoint = cameraPreview.videoPreviewLayer.captureDevicePointConverted(fromLayerPoint: gestureRecognizer.location(in: cameraPreview))
+//		cameraSession.focus(with: .autoFocus, exposureMode: .autoExpose, atDevicePoint: devicePoint, monitorSubjectAreaChange: true)
 	}
 
 

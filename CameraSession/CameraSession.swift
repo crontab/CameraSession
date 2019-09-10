@@ -54,10 +54,11 @@ public protocol CameraSessionDelegate: class {
 	// Optional; called in response to resumeInterruptedSession()
 	func cameraSession(_ cameraSession: CameraSession, didResumeInterruptedSessionWithResult: Bool)
 
-	// Optional; buffer-level processing e.g. for video effects. Can modify the buffer.
+	// Optional; buffer-level processing e.g. for video effects.
 	// NOTE: called on a non-GUI thread
-	func cameraSession(_ cameraSession: CameraSession, didCaptureBuffer sampleBuffer: CMSampleBuffer)
+	func cameraSession(_ cameraSession: CameraSession, didCaptureBuffer sampleBuffer: CMSampleBuffer) -> CMSampleBuffer
 }
+
 
 
 public extension CameraSessionDelegate {
@@ -72,7 +73,7 @@ public extension CameraSessionDelegate {
 	func cameraSession(_ cameraSession: CameraSession, wasInterruptedWithError: Error?) {}
 	func cameraSession(_ cameraSession: CameraSession, wasInterruptedWithReason: AVCaptureSession.InterruptionReason) {}
 	func cameraSession(_ cameraSession: CameraSession, didResumeInterruptedSessionWithResult: Bool) {}
-	func cameraSession(_ cameraSession: CameraSession, didCaptureBuffer sampleBuffer: CMSampleBuffer) {}
+	func cameraSession(_ cameraSession: CameraSession, didCaptureBuffer sampleBuffer: CMSampleBuffer) -> CMSampleBuffer { return sampleBuffer }
 }
 
 
@@ -659,8 +660,9 @@ public class CameraSession: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureVi
 		let isAudio = output == self.audioOutput
 		let isVideo = output == self.videoOutput
 
-		if isVideo {
-			delegate?.cameraSession(self, didCaptureBuffer: sampleBuffer)
+		var sampleBuffer = sampleBuffer
+		if isVideo, let delegate = delegate {
+			sampleBuffer = delegate.cameraSession(self, didCaptureBuffer: sampleBuffer)
 		}
 
 		guard let assetWriter = self.assetWriter, let videoWriterInput = self.videoWriterInput, let audioWriterInput = self.audioWriterInput else {
