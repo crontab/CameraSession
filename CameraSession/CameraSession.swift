@@ -44,8 +44,8 @@ public protocol CameraSessionDelegate: class {
 	// Optional
 	func cameraSessionDidStartRecording(_ cameraSession: CameraSession)
 
-	// Does what it says; note that it is possible to have multiple recording processess finishing if background recording is enabled on the system; therefore it is recommended to have a unique/random temp file in each call to startRecording().
-	func cameraSession(_ cameraSession: CameraSession, didFinishRecordingTo fileUrl: URL, error: Error?)
+	// Optional; called when video recording ends either successfully or with an error. The receiver should move the file elsewhere because the temp video file is deleted immediately after this call
+	func cameraSession(_ cameraSession: CameraSession, didFinishRecordingTo fileUrl: URL?, error: Error?)
 
 	// Optional; called on runtime error or interruption. The UI can show a button that allows to resume the sesion manually using the resumeSession() call
 	func cameraSession(_ cameraSession: CameraSession, wasInterruptedWithError: Error?)
@@ -69,7 +69,7 @@ public extension CameraSessionDelegate {
 	func cameraSessionWillCapturePhoto(_ cameraSession: CameraSession) {}
 	func cameraSession(_ cameraSession: CameraSession, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {}
 	func cameraSessionDidStartRecording(_ cameraSession: CameraSession) {}
-	func cameraSession(_ cameraSession: CameraSession, didFinishRecordingTo fileUrl: URL, error: Error?) {}
+	func cameraSession(_ cameraSession: CameraSession, didFinishRecordingTo fileUrl: URL?, error: Error?) {}
 	func cameraSession(_ cameraSession: CameraSession, wasInterruptedWithError: Error?) {}
 	func cameraSession(_ cameraSession: CameraSession, wasInterruptedWithReason: AVCaptureSession.InterruptionReason) {}
 	func cameraSession(_ cameraSession: CameraSession, didResumeInterruptedSessionWithResult: Bool) {}
@@ -94,6 +94,10 @@ public class CameraPreview: UIView {
 
 
 public class CameraSession: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate {
+
+	public static let videoFileExt = "mp4"
+	public static let outputMimeType = "video/mp4"
+
 
 	public enum Status: Equatable {
 		case undefined
@@ -217,7 +221,7 @@ public class CameraSession: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureVi
 	}
 
 
-	public func startVideoRecording(toFileURL fileURL: URL) {
+	public func startVideoRecording() {
 		queue.async {
 			guard !self.isRecording else {
 				return
@@ -232,6 +236,8 @@ public class CameraSession: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureVi
 			guard self.videoOutput != nil && self.audioOutput != nil else {
 				return
 			}
+			let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension(CameraSession.videoFileExt)
+			print("Recording to", fileURL)
 			self.prepareWriterChain(fileURL: fileURL)
 		}
 	}
@@ -696,7 +702,8 @@ public class CameraSession: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureVi
 			self.audioWriterInput = nil
 			let error = assetWriter.status == .failed ? assetWriter.error : nil
 			DispatchQueue.main.async {
-				self.delegate?.cameraSession(self, didFinishRecordingTo: assetWriter.outputURL, error: error)
+				self.delegate?.cameraSession(self, didFinishRecordingTo: error == nil ? assetWriter.outputURL : nil, error: error)
+				try? FileManager.default.removeItem(at: assetWriter.outputURL)
 			}
 			break
 
@@ -763,8 +770,8 @@ public class CameraSession: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureVi
 
 	@objc func subjectAreaDidChange(notification: NSNotification) {
 		// TODO: this should move to CameraPreview
-//		let point = CGPoint(x: bounds.midX, y: bounds.midY)
-//		focus(with: .continuousAutoFocus, exposureMode: .continuousAutoExposure, atPoint: point, monitorSubjectAreaChange: false)
+		//		let point = CGPoint(x: bounds.midX, y: bounds.midY)
+		//		focus(with: .continuousAutoFocus, exposureMode: .continuousAutoExposure, atPoint: point, monitorSubjectAreaChange: false)
 	}
 
 

@@ -87,22 +87,17 @@ class CameraViewController: UIViewController, CameraSessionDelegate {
 	}
 
 
-	func cameraSession(_ cameraSession: CameraSession, didFinishRecordingTo fileUrl: URL, error: Error?) {
+	func cameraSession(_ cameraSession: CameraSession, didFinishRecordingTo fileUrl: URL?, error: Error?) {
 
-		// Note: Since we use a unique file path for each recording, a new recording won't overwrite a recording mid-save.
-		func cleanup() {
-			try? FileManager.default.removeItem(at: fileUrl)
-		}
-
-		var success = true
-
-		if error != nil {
+		if let error = error {
 			print("Movie file finishing error: \(String(describing: error))")
-			success = ((error! as NSError).userInfo[AVErrorRecordingSuccessfullyFinishedKey] as AnyObject).boolValue ?? false
+			// success = ((error! as NSError).userInfo[AVErrorRecordingSuccessfullyFinishedKey] as AnyObject).boolValue ?? false
 		}
 
-		if success {
-			// Check authorization status.
+		else if let fileUrl = fileUrl {
+			let videoFileUrl = self.videoFileUrl
+			try? FileManager.default.removeItem(at: videoFileUrl)
+			try! FileManager.default.moveItem(at: fileUrl, to: videoFileUrl)
 			PHPhotoLibrary.requestAuthorization { status in
 				if status == .authorized {
 					// Save the movie file to the photo library and cleanup.
@@ -110,20 +105,15 @@ class CameraViewController: UIViewController, CameraSessionDelegate {
 						let options = PHAssetResourceCreationOptions()
 						options.shouldMoveFile = true
 						let creationRequest = PHAssetCreationRequest.forAsset()
-						creationRequest.addResource(with: .video, fileURL: fileUrl, options: options)
+						creationRequest.addResource(with: .video, fileURL: videoFileUrl, options: options)
 					}, completionHandler: { success, error in
 						if !success {
 							print("CameraSession couldn't save the movie to your photo library: \(String(describing: error))")
 						}
-						cleanup()
 					}
 					)
-				} else {
-					cleanup()
 				}
 			}
-		} else {
-			cleanup()
 		}
 
 		// Enable the Camera and Record buttons to let the user switch camera and start another recording.
@@ -203,6 +193,11 @@ class CameraViewController: UIViewController, CameraSessionDelegate {
 	}
 
 
+	private var videoFileUrl: URL {
+		return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("video").appendingPathExtension(CameraSession.videoFileExt)
+	}
+
+
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 
@@ -278,9 +273,7 @@ class CameraViewController: UIViewController, CameraSessionDelegate {
 			cameraSession.stopVideoRecording()
 		}
 		else {
-			let outputFileName = NSUUID().uuidString
-			let outputFilePath = (NSTemporaryDirectory() as NSString).appendingPathComponent((outputFileName as NSString).appendingPathExtension("mp4")!)
-			cameraSession.startVideoRecording(toFileURL: URL(fileURLWithPath: outputFilePath))
+			cameraSession.startVideoRecording()
 		}
 	}
 
