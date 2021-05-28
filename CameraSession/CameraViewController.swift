@@ -61,8 +61,8 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 
 	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCapturePhoto photo: AVCapturePhoto?, error: Error?) {
 		if let data = photo?.fileDataRepresentation() {
-			PHPhotoLibrary.requestAuthorization { status in
-				if status == .authorized {
+			PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+				if status == .authorized || status == .limited {
 					PHPhotoLibrary.shared().performChanges({
 						let options = PHAssetResourceCreationOptions()
 						options.uniformTypeIdentifier = AVFileType.jpg.rawValue
@@ -102,8 +102,8 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 
 		if success {
 			// Check authorization status.
-			PHPhotoLibrary.requestAuthorization { status in
-				if status == .authorized {
+			PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+				if status == .authorized || status == .limited {
 					// Save the movie file to the photo library and cleanup.
 					PHPhotoLibrary.shared().performChanges({
 						let options = PHAssetResourceCreationOptions()
