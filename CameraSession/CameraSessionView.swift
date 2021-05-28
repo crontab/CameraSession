@@ -15,7 +15,7 @@ private let PHOTO_OUTPUT_CODEC_TYPE = AVVideoCodecType.jpeg
 private let ORIENTATION = AVCaptureVideoOrientation.portrait
 
 
-protocol CameraSessionViewDelegate: class {
+protocol CameraSessionViewDelegate: AnyObject {
 
 	// Called after the session has been configured or reconfigured as a result of changes in input device, capture mode (photo vs. video). Can be used to e.g. enable UI controls that you should disable before making any changes in the configuration.
 	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCompleteConfigurationWithStatus status: CameraSessionView.Status)
