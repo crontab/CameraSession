@@ -60,7 +60,11 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 
 
 	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCapturePhoto photo: AVCapturePhoto?, error: Error?) {
-		if let data = photo?.fileDataRepresentation() {
+		guard let data = photo?.fileDataRepresentation() else {
+			print("Error capturing the photo: \(error?.localizedDescription ?? "?")")
+			return
+		}
+		cameraSessionView.stopSession() {
 			PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
 				if status == .authorized || status == .limited {
 					PHPhotoLibrary.shared().performChanges({
@@ -73,7 +77,13 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 						if let error = error {
 							print("Error occurred while saving photo to photo library: \(error)")
 						}
+						DispatchQueue.main.async {
+							self.cameraSessionView.startSession()
+						}
 					})
+				}
+				else {
+					self.cameraSessionView.startSession()
 				}
 			}
 		}
