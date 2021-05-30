@@ -11,23 +11,23 @@ import AVFoundation
 import Photos
 
 
-class CameraViewController: UIViewController, CameraSessionViewDelegate {
+class CameraViewController: UIViewController, CameraViewDelegate {
 
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCompleteConfigurationWithStatus status: CameraSessionView.Status) {
+	func cameraView(_ cameraView: CameraView, didCompleteConfigurationWithStatus status: CameraView.Status) {
 		switch status {
 		case .undefined:
 			preconditionFailure()
 
 		case .configured:
-			cameraButton.isEnabled = cameraSessionView.hasBackAndFront
-			recordButton.isEnabled = cameraSessionView.isVideo
-			photoButton.isEnabled = cameraSessionView.isPhoto
+			cameraButton.isEnabled = cameraView.hasBackAndFront
+			recordButton.isEnabled = cameraView.isVideo
+			photoButton.isEnabled = cameraView.isPhoto
 			captureModeControl.isEnabled = true
-			captureModeControl.selectedSegmentIndex = cameraSessionView.isPhoto ? 0 : 1
-			zoomButton.isEnabled = cameraSessionView.hasZoom
-			zoomButton.isHidden = !cameraSessionView.hasZoom
-			torchButton.isEnabled = cameraSessionView.hasTorch
-			torchButton.isHidden = !cameraSessionView.hasTorch
+			captureModeControl.selectedSegmentIndex = cameraView.isPhoto ? 0 : 1
+			zoomButton.isEnabled = cameraView.hasZoom
+			zoomButton.isHidden = !cameraView.hasZoom
+			torchButton.isEnabled = cameraView.hasTorch
+			torchButton.isHidden = !cameraView.hasTorch
 			break
 
 		case .notAuthorized:
@@ -46,25 +46,25 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 	}
 
 
-	func cameraSessionViewDidChangeZoomLevel(_ cameraSessionView: CameraSessionView) {
-		zoomButton.setTitle("\(Int(cameraSessionView.zoomLevel))x", for: .normal)
+	func cameraViewDidChangeZoomLevel(_ cameraView: CameraView) {
+		zoomButton.setTitle("\(Int(cameraView.zoomLevel))x", for: .normal)
 	}
 
-	func cameraSessionViewWillCapturePhoto(_ cameraSessionView: CameraSessionView) {
-		// Flash the screen to signal that CameraSessionView took a photo.
-		self.cameraSessionView.alpha = 0
+	func cameraViewWillCapturePhoto(_ cameraView: CameraView) {
+		// Flash the screen to signal that CameraView took a photo.
+		self.cameraView.alpha = 0
 		UIView.animate(withDuration: 0.25) {
-			self.cameraSessionView.alpha = 1
+			self.cameraView.alpha = 1
 		}
 	}
 
 
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, didCapturePhoto photo: AVCapturePhoto?, error: Error?) {
+	func cameraView(_ cameraView: CameraView, didCapturePhoto photo: AVCapturePhoto?, error: Error?) {
 		guard let data = photo?.fileDataRepresentation() else {
 			print("Error capturing the photo: \(error?.localizedDescription ?? "?")")
 			return
 		}
-		cameraSessionView.stopSession() {
+		cameraView.stopSession() {
 			PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
 				if status == .authorized || status == .limited {
 					PHPhotoLibrary.shared().performChanges({
@@ -78,25 +78,25 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 							print("Error occurred while saving photo to photo library: \(error)")
 						}
 						DispatchQueue.main.async {
-							self.cameraSessionView.startSession()
+							cameraView.startSession()
 						}
 					})
 				}
 				else {
-					self.cameraSessionView.startSession()
+					cameraView.startSession()
 				}
 			}
 		}
 	}
 
 
-	func cameraSessionViewDidStartRecording(_ cameraSessionView: CameraSessionView) {
+	func cameraViewDidStartRecording(_ cameraView: CameraView) {
 		self.recordButton.isEnabled = true
 		self.recordButton.setImage(#imageLiteral(resourceName: "CaptureStop"), for: [])
 	}
 
 
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, didFinishRecordingTo fileUrl: URL, error: Error?) {
+	func cameraView(_ cameraView: CameraView, didFinishRecordingTo fileUrl: URL, error: Error?) {
 
 		// Note: Since we use a unique file path for each recording, a new recording won't overwrite a recording mid-save.
 		func cleanup() {
@@ -122,7 +122,7 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 						creationRequest.addResource(with: .video, fileURL: fileUrl, options: options)
 					}, completionHandler: { success, error in
 						if !success {
-							print("CameraSessionView couldn't save the movie to your photo library: \(String(describing: error))")
+							print("CameraView couldn't save the movie to your photo library: \(String(describing: error))")
 						}
 						cleanup()
 					}
@@ -137,19 +137,19 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 
 		// Enable the Camera and Record buttons to let the user switch camera and start another recording.
 		// Only enable the ability to change camera if the device has more than one camera.
-		self.cameraButton.isEnabled = self.cameraSessionView.hasBackAndFront
+		self.cameraButton.isEnabled = self.cameraView.hasBackAndFront
 		self.recordButton.isEnabled = true
 		self.captureModeControl.isEnabled = true
 		self.recordButton.setImage(#imageLiteral(resourceName: "CaptureVideo"), for: [])
 	}
 
 
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, wasInterruptedWithError: Error?) {
+	func cameraView(_ cameraView: CameraView, wasInterruptedWithError: Error?) {
 		self.resumeButton.isHidden = false
 	}
 
 
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, wasInterruptedWithReason reason: AVCaptureSession.InterruptionReason) {
+	func cameraView(_ cameraView: CameraView, wasInterruptedWithReason reason: AVCaptureSession.InterruptionReason) {
 		var showResumeButton = false
 		if reason == .audioDeviceInUseByAnotherClient || reason == .videoDeviceInUseByAnotherClient {
 			showResumeButton = true
@@ -161,7 +161,7 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 				self.cameraUnavailableLabel.alpha = 1
 			}
 		} else if reason == .videoDeviceNotAvailableDueToSystemPressure {
-			print("CameraSessionView error: Session stopped running due to shutdown system pressure level.")
+			print("CameraView error: Session stopped running due to shutdown system pressure level.")
 		}
 		if showResumeButton {
 			// Fade-in a button to enable the user to try to resume the session running.
@@ -174,7 +174,7 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 	}
 
 
-	func cameraSessionView(_ cameraSessionView: CameraSessionView, didResumeInterruptedSessionWithResult result: Bool) {
+	func cameraView(_ cameraView: CameraView, didResumeInterruptedSessionWithResult result: Bool) {
 		if !result {
 			let alertController = UIAlertController(title: "Camera", message: "Unable to resume", preferredStyle: .alert)
 			let cancelAction = UIAlertAction(title: "OK", style: .cancel, handler: nil)
@@ -211,7 +211,7 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 		zoomButton.layer.borderWidth = 1
 		zoomButton.layer.cornerRadius = 5
 
-		cameraSessionView.initialize(delegate: self, isPhoto: false, isFront: false)
+		cameraView.initialize(delegate: self, isPhoto: false, isFront: false)
 	}
 
 
@@ -225,7 +225,7 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 	}
 
 
-	@IBOutlet private weak var cameraSessionView: CameraSessionView!
+	@IBOutlet private weak var cameraView: CameraView!
 
 
 	private enum CaptureMode: Int {
@@ -237,7 +237,7 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 
 	@IBAction private func toggleCaptureMode(_ captureModeControl: UISegmentedControl) {
 		disableAllControls()
-		cameraSessionView.isPhoto = captureModeControl.selectedSegmentIndex == CaptureMode.photo.rawValue
+		cameraView.isPhoto = captureModeControl.selectedSegmentIndex == CaptureMode.photo.rawValue
 	}
 
 
@@ -247,26 +247,26 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 
 	@IBAction private func changeCamera(_ cameraButton: UIButton) {
 		disableAllControls()
-		cameraSessionView.isFront = !cameraSessionView.isFront
+		cameraView.isFront = !cameraView.isFront
 	}
 
 
 	@IBAction private func focusAndExposeTap(_ gestureRecognizer: UITapGestureRecognizer) {
-		cameraSessionView.focus(with: .autoFocus, exposureMode: .autoExpose, atPoint: gestureRecognizer.location(in: cameraSessionView), monitorSubjectAreaChange: true)
+		cameraView.focus(with: .autoFocus, exposureMode: .autoExpose, atPoint: gestureRecognizer.location(in: cameraView), monitorSubjectAreaChange: true)
 	}
 
 
 	@IBOutlet private weak var photoButton: UIButton!
 
 	@IBAction private func capturePhoto(_ photoButton: UIButton) {
-		cameraSessionView.capturePhoto()
+		cameraView.capturePhoto()
 	}
 
 
 	@IBOutlet private weak var resumeButton: UIButton!
 
 	@IBAction private func resumeInterruptedSession(_ resumeButton: UIButton) {
-		cameraSessionView.resumeInterruptedSession()
+		cameraView.resumeInterruptedSession()
 	}
 
 
@@ -278,13 +278,13 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 		recordButton.isEnabled = false
 		captureModeControl.isEnabled = false
 
-		if cameraSessionView.isRecording {
-			cameraSessionView.stopVideoRecording()
+		if cameraView.isRecording {
+			cameraView.stopVideoRecording()
 		}
 		else {
 			let outputFileName = NSUUID().uuidString
 			let outputFilePath = (NSTemporaryDirectory() as NSString).appendingPathComponent((outputFileName as NSString).appendingPathExtension("mp4")!)
-			cameraSessionView.startVideoRecording(toFileURL: URL(fileURLWithPath: outputFilePath))
+			cameraView.startVideoRecording(toFileURL: URL(fileURLWithPath: outputFilePath))
 		}
 	}
 
@@ -292,14 +292,14 @@ class CameraViewController: UIViewController, CameraSessionViewDelegate {
 	@IBOutlet weak var zoomButton: UIButton!
 
 	@IBAction func zoomAction(_ sender: Any) {
-		cameraSessionView.zoomLevel = cameraSessionView.zoomLevel == 1 ? 2 : 1
+		cameraView.zoomLevel = cameraView.zoomLevel == 1 ? 2 : 1
 	}
 
 
 	@IBOutlet weak var torchButton: UIButton!
 
 	@IBAction func torchAction(_ sender: Any) {
-		cameraSessionView.isTorchOn = !cameraSessionView.isTorchOn
+		cameraView.isTorchOn = !cameraView.isTorchOn
 	}
 }
 
