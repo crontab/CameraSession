@@ -20,10 +20,10 @@ class CameraViewController: UIViewController, CameraViewDelegate {
 
 		case .configured:
 			cameraButton.isEnabled = cameraView.hasBackAndFront
-			recordButton.isEnabled = cameraView.isVideo
-			photoButton.isEnabled = cameraView.isPhoto
+			recordButton.isEnabled = cameraView.outputMode.isVideo
+			photoButton.isEnabled = cameraView.outputMode.isPhoto
 			captureModeControl.isEnabled = true
-			captureModeControl.selectedSegmentIndex = cameraView.isPhoto ? 0 : 1
+			captureModeControl.selectedSegmentIndex = cameraView.outputMode.isPhoto ? 0 : 1
 			zoomButton.isEnabled = cameraView.hasZoom
 			zoomButton.isHidden = !cameraView.hasZoom
 			torchButton.isEnabled = cameraView.hasTorch
@@ -211,7 +211,7 @@ class CameraViewController: UIViewController, CameraViewDelegate {
 		zoomButton.layer.borderWidth = 1
 		zoomButton.layer.cornerRadius = 5
 
-		cameraView.initialize(delegate: self, isPhoto: false, isFront: false)
+		cameraView.initialize(delegate: self, outputMode: .video, isFront: false)
 	}
 
 
@@ -237,7 +237,7 @@ class CameraViewController: UIViewController, CameraViewDelegate {
 
 	@IBAction private func toggleCaptureMode(_ captureModeControl: UISegmentedControl) {
 		disableAllControls()
-		cameraView.isPhoto = captureModeControl.selectedSegmentIndex == CaptureMode.photo.rawValue
+		cameraView.outputMode = captureModeControl.selectedSegmentIndex == CaptureMode.photo.rawValue ? .photo : .video
 	}
 
 

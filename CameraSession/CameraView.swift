@@ -84,20 +84,27 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 		case configurationFailed(message: String)
 	}
 
+	public enum OutputMode: Equatable {
+		case photo
+		case video
+		case photoAndVideo
+		// TODO: add QR code mode
+
+		public var isVideo: Bool { self != .photo }
+		public var isPhoto: Bool { self != .video }
+	}
+
 	open private(set) var status: Status = .undefined
 
-	open var isPhoto: Bool = true {
+	open var outputMode: OutputMode = .photo {
 		didSet {
-			if status == .configured && oldValue != isPhoto {
+			if status == .configured && oldValue != outputMode {
 				didSwitchPhotoVideoMode()
 			}
 		}
 	}
 
-	open var isVideo: Bool {
-		get { !isPhoto }
-		set { isPhoto = !newValue }
-	}
+	open private(set) var sessionPreset: AVCaptureSession.Preset = .high
 
 	open var isFront: Bool = false {
 		didSet {
@@ -142,13 +149,14 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 	}
 
 
-	open func initialize(delegate: CameraViewDelegate, isPhoto: Bool, isFront: Bool) {
+	open func initialize(delegate: CameraViewDelegate, outputMode: OutputMode, isFront: Bool, sessionPreset: AVCaptureSession.Preset = .high) {
 		precondition(status == .undefined)
 		precondition(Thread.isMainThread)
 
 		self.delegate = delegate
-		self.isPhoto = isPhoto
+		self.outputMode = outputMode
 		self.isFront = isFront
+		self.sessionPreset = sessionPreset
 
 		if session == nil {
 			session = AVCaptureSession()
@@ -403,7 +411,7 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 
 		session.beginConfiguration()
 
-		session.sessionPreset = isPhoto ? .photo : .high
+		session.sessionPreset = sessionPreset
 
 		configureVideoInput()
 		configureAudioInput()
@@ -512,7 +520,7 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 
 	private func configureAudioInput() {
 		precondition(!Thread.isMainThread)
-		if isVideo && audioDeviceInput == nil {
+		if outputMode.isVideo && audioDeviceInput == nil {
 			do {
 				let audioDevice = AVCaptureDevice.default(for: .audio)
 				let audioDeviceInput = try AVCaptureDeviceInput(device: audioDevice!)
@@ -526,7 +534,7 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 				print("CameraView error: Could not create audio device input: \(error)")
 			}
 		}
-		else if !isVideo, let audioDeviceInput = audioDeviceInput {
+		else if !outputMode.isVideo, let audioDeviceInput = audioDeviceInput {
 			session.removeInput(audioDeviceInput)
 			self.audioDeviceInput = nil
 		}
@@ -535,7 +543,7 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 
 	private func configureVideoOutput() {
 		precondition(!Thread.isMainThread)
-		if isVideo && videoOutput == nil {
+		if outputMode.isVideo && videoOutput == nil {
 			let videoOutput = AVCaptureMovieFileOutput()
 			if session.canAddOutput(videoOutput) {
 				session.addOutput(videoOutput)
@@ -554,7 +562,7 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 				self.videoOutput = videoOutput
 			}
 		}
-		else if !isVideo, let videoOutput = videoOutput {
+		else if !outputMode.isVideo, let videoOutput = videoOutput {
 			session.removeOutput(videoOutput)
 			self.videoOutput = nil
 		}
@@ -563,7 +571,7 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 
 	private func configurePhotoOutput() {
 		precondition(!Thread.isMainThread)
-		if isPhoto && photoOutput == nil {
+		if outputMode.isPhoto && photoOutput == nil {
 			let photoOutput = AVCapturePhotoOutput()
 			if session.canAddOutput(photoOutput) {
 				session.addOutput(photoOutput)
@@ -577,7 +585,7 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 				return
 			}
 		}
-		else if !isPhoto, let photoOutput = photoOutput {
+		else if !outputMode.isPhoto, let photoOutput = photoOutput {
 			session.removeOutput(photoOutput)
 			self.photoOutput = nil
 		}
