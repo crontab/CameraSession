@@ -24,10 +24,9 @@ class CameraViewController: UIViewController, CameraViewDelegate {
 			photoButton.isEnabled = cameraView.outputMode.isPhoto
 			captureModeControl.isEnabled = true
 			captureModeControl.selectedSegmentIndex = cameraView.outputMode.isPhoto ? 0 : 1
-			zoomButton.isEnabled = cameraView.hasZoom
-			zoomButton.isHidden = !cameraView.hasZoom
 			torchButton.isEnabled = cameraView.hasTorch
 			torchButton.isHidden = !cameraView.hasTorch
+			updateZoomButton()
 			break
 
 		case .notAuthorized:
@@ -47,8 +46,16 @@ class CameraViewController: UIViewController, CameraViewDelegate {
 
 
 	func cameraViewDidChangeZoomLevel(_ cameraView: CameraView) {
+		updateZoomButton()
+	}
+
+
+	private func updateZoomButton() {
+		zoomButton.isEnabled = cameraView.hasZoom
+		zoomButton.isHidden = !cameraView.hasZoom
 		zoomButton.setTitle("\(Int(cameraView.zoomLevel))x", for: .normal)
 	}
+
 
 	func cameraViewWillCapturePhoto(_ cameraView: CameraView) {
 		// Flash the screen to signal that CameraView took a photo.
@@ -64,7 +71,7 @@ class CameraViewController: UIViewController, CameraViewDelegate {
 			print("Error capturing the photo: \(error?.localizedDescription ?? "?")")
 			return
 		}
-		cameraView.stopSession() {
+		cameraView.pauseSession() {
 			PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
 				if status == .authorized || status == .limited {
 					PHPhotoLibrary.shared().performChanges({
@@ -78,12 +85,12 @@ class CameraViewController: UIViewController, CameraViewDelegate {
 							print("Error occurred while saving photo to photo library: \(error)")
 						}
 						DispatchQueue.main.async {
-							cameraView.startSession()
+							cameraView.resumeSession()
 						}
 					})
 				}
 				else {
-					cameraView.startSession()
+					cameraView.resumeSession()
 				}
 			}
 		}

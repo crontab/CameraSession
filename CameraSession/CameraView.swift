@@ -106,47 +106,57 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 
 	open private(set) var sessionPreset: AVCaptureSession.Preset = .high
 
-	open var isFront: Bool = false {
-		didSet {
-			if status == .configured && oldValue != isFront {
-				didSwitchCameraPosition()
-			}
-		}
-	}
 
 	open var hasBackAndFront: Bool {
 		videoDeviceDiscoverySession.uniqueDevicePositions.count > 1
 	}
 
+	open var isFront: Bool {
+		get { videoDeviceInput?.device.position == .front }
+		set {
+			if newValue != isFront, hasBackAndFront, !isRecording {
+				queue.async {
+					self.trySwitchCameraPosition(newValue)
+				}
+			}
+		}
+	}
+
+
+	open var hasFlash: Bool { videoDeviceInput?.device.isFlashAvailable ?? false }
+
 	open var isFlashEnabled: Bool = true // actually means automatic or off
 
-	open private(set)
-	var hasFlash: Bool = false
 
-	open var zoomLevel: CGFloat = 1 {
-		didSet {
-			if !isSettingZoom {
-				didSetZoomLevel()
+	open var hasZoom: Bool { videoDeviceInput?.device.minAvailableVideoZoomFactor != videoDeviceInput?.device.maxAvailableVideoZoomFactor }
+
+	open var zoomLevel: CGFloat {
+		get { videoDeviceInput?.device.videoZoomFactor ?? 1 }
+		set {
+			if newValue != zoomLevel, hasZoom {
+				queue.async {
+					self.trySetZoomLevel(newValue)
+				}
 			}
 		}
 	}
 
-	open var hasZoom: Bool { !isFront }
 
-	open var isTorchOn: Bool = false {
-		didSet {
-			if !isSettingTorch {
-				didSwitchTorch()
+	open var hasTorch: Bool { videoDeviceInput?.device.isTorchAvailable ?? false }
+
+	open var isTorchOn: Bool {
+		get { videoDeviceInput?.device.torchMode == .on }
+		set {
+			if newValue != isTorchOn, hasTorch {
+				queue.async {
+					self.trySwitchTorch(newValue)
+				}
 			}
 		}
 	}
 
-	open private(set) var hasTorch: Bool = false
 
-	open var isRecording: Bool {
-		// Is this thread safe? Hopefully. But not terribly important because normally you won't use this flag, everything should be done via delegates.
-		videoOutput?.isRecording ?? false
-	}
+	open var isRecording: Bool { videoOutput?.isRecording ?? false }
 
 
 	open func initialize(delegate: CameraViewDelegate, outputMode: OutputMode, isFront: Bool, sessionPreset: AVCaptureSession.Preset = .high) {
@@ -155,23 +165,17 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 
 		self.delegate = delegate
 		self.outputMode = outputMode
-		self.isFront = isFront
 		self.sessionPreset = sessionPreset
 
-		if session == nil {
-			session = AVCaptureSession()
+		if videoPreviewLayer.session == nil {
 			videoPreviewLayer.session = session
 			videoPreviewLayer.videoGravity = .resizeAspectFill
-		}
-
-		if queue == nil {
-			queue = DispatchQueue(label: String(describing: self))
 		}
 
 		checkAuthorization() // runs on main thread, blocks the session thread if UI is involved
 
 		queue.async {
-			self.configureSession()
+			self.configureSession(isFront: isFront)
 		}
 	}
 
@@ -184,9 +188,10 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 	}
 
 
-	public func startSession(completion: (() -> Void)? = nil) {
+	public func resumeSession(completion: (() -> Void)? = nil) {
 		queue.async {
-			self.configureSession()
+			// TODO: torch should be re-enabled here
+			self.session.startRunning()
 			DispatchQueue.main.async {
 				completion?()
 			}
@@ -194,7 +199,7 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 	}
 
 
-	public func stopSession(completion: (() -> Void)? = nil) {
+	public func pauseSession(completion: (() -> Void)? = nil) {
 		queue.async {
 			self.session.stopRunning()
 			DispatchQueue.main.async {
@@ -206,7 +211,7 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 
 	open func capturePhoto() {
 		queue.async {
-			guard self.session?.isRunning == true, let photoOutput = self.photoOutput else {
+			guard self.session.isRunning, let photoOutput = self.photoOutput, let videoDeviceInput = self.videoDeviceInput else {
 				DispatchQueue.main.async {
 					self.delegate?.cameraView(self, didCapturePhoto: nil, error: CameraViewError.sessionNotRunning)
 				}
@@ -215,7 +220,7 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 			let photoSettings = photoOutput.availablePhotoCodecTypes.contains(PHOTO_OUTPUT_CODEC_TYPE) ?
 				AVCapturePhotoSettings(format: [AVVideoCodecKey: PHOTO_OUTPUT_CODEC_TYPE]) :
 				AVCapturePhotoSettings()
-			if self.videoDeviceInput.device.isFlashAvailable {
+			if videoDeviceInput.device.isFlashAvailable {
 				photoSettings.flashMode = self.isFlashEnabled ? .auto : .off
 			}
 			if !photoSettings.__availablePreviewPhotoPixelFormatTypes.isEmpty {
@@ -228,7 +233,7 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 
 	open func startVideoRecording(toFileURL fileURL: URL) {
 		queue.async {
-			guard self.session?.isRunning == true, let videoOutput = self.videoOutput else {
+			guard self.session.isRunning, let videoOutput = self.videoOutput else {
 				DispatchQueue.main.async {
 					self.delegate?.cameraView(self, didFinishRecordingTo: fileURL, error: CameraViewError.sessionNotRunning)
 				}
@@ -262,7 +267,7 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 	open func focus(with focusMode: AVCaptureDevice.FocusMode, exposureMode: AVCaptureDevice.ExposureMode, atPoint point: CGPoint,  monitorSubjectAreaChange: Bool) {
 		let devicePoint = videoPreviewLayer.captureDevicePointConverted(fromLayerPoint: point)
 		queue.async {
-			let device = self.videoDeviceInput.device
+			guard let device = self.videoDeviceInput?.device else { return }
 			do {
 				try device.lockForConfiguration()
 				if device.isFocusPointOfInterestSupported && device.isFocusModeSupported(focusMode) {
@@ -296,20 +301,16 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 	open override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
 	private var videoPreviewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
 
-	private var session: AVCaptureSession!
-	private var queue: DispatchQueue!
+	private let session = AVCaptureSession()
+	private let queue = DispatchQueue(label: String(describing: self))
 
 	private weak var delegate: CameraViewDelegate?
 
-	private var videoDeviceInput: AVCaptureDeviceInput!
+	private var videoDeviceInput: AVCaptureDeviceInput?
 	private var audioDeviceInput: AVCaptureDeviceInput?
 	private var photoOutput: AVCapturePhotoOutput?
 	private var videoOutput: AVCaptureMovieFileOutput?
 	private var backgroundRecordingID: UIBackgroundTaskIdentifier = .invalid
-
-	private var isSettingZoom: Bool = false // helps bypass didSet
-	private var isSettingTorch: Bool = false
-
 
 	private let videoDeviceDiscoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .builtInDualCamera, .builtInTelephotoCamera], mediaType: .video, position: .unspecified)
 	private let audioDeviceDiscoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInMicrophone], mediaType: AVMediaType.audio, position: .unspecified)
@@ -340,80 +341,39 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 
 	private func didSwitchPhotoVideoMode() {
 		queue.async {
-			guard !self.isRecording else {
-				return
-			}
-			self.configureSession()
+			guard !self.isRecording else { return }
+			self.configureSession(isFront: self.isFront)
 		}
 	}
 
 
-	private func didSwitchCameraPosition() {
-		queue.async {
-			guard !self.isRecording else {
-				return
-			}
-			self.session.stopRunning()
-			if let videoDeviceInput = self.videoDeviceInput {
-				self.removeDeviceInputObservers()
-				self.session.removeInput(videoDeviceInput)
-				self.videoDeviceInput = nil
-			}
-			if let videoOutput = self.videoOutput { // it's important to reset the videoOutput too, for the orientation thing to work properly
-				self.session.removeOutput(videoOutput)
-				self.videoOutput = nil
-			}
-			self.configureSession()
-		}
-	}
-
-
-	private func didSetZoomLevel() {
-		queue.async {
-			self.isSettingZoom = true
-			if let videoDeviceInput = self.videoDeviceInput {
-				self.trySetZoomLevel()
-				self.zoomLevel = videoDeviceInput.device.videoZoomFactor
-			}
-			else {
-				self.zoomLevel = 1
-			}
-			self.isSettingZoom = false
-			DispatchQueue.main.async {
-				self.delegate?.cameraViewDidChangeZoomLevel(self)
-			}
-		}
-	}
-
-
-	private func didSwitchTorch() {
-		self.isSettingTorch = true
+	private func trySwitchCameraPosition(_ isFront: Bool) {
+		precondition(!Thread.isMainThread)
+		guard !self.isRecording else { return }
+		self.session.stopRunning()
 		if let videoDeviceInput = self.videoDeviceInput {
-			self.trySwitchTorch()
-			self.isTorchOn = videoDeviceInput.device.torchMode == .on
+			self.removeDeviceInputObservers()
+			self.session.removeInput(videoDeviceInput)
+			self.videoDeviceInput = nil
 		}
-		else {
-			self.isTorchOn = false
+		if let videoOutput = self.videoOutput { // it's important to reset the videoOutput too, for the orientation thing to work properly
+			self.session.removeOutput(videoOutput)
+			self.videoOutput = nil
 		}
-		self.isSettingTorch = false
-		DispatchQueue.main.async {
-			self.delegate?.cameraViewDidSwitchTorch(self)
-		}
+		self.configureSession(isFront: isFront)
 	}
 
 
-	private func configureSession() {
+	private func configureSession(isFront: Bool) {
 		precondition(!Thread.isMainThread)
 
-		guard status == .undefined || status == .configured else {
-			return
-		}
+		guard status == .undefined || status == .configured else { return }
 
 		session.beginConfiguration()
 
 		session.sessionPreset = sessionPreset
 
-		configureVideoInput()
+		configureVideoInput(isFront: isFront)
 		configureAudioInput()
 		configurePhotoOutput()
 		configureVideoOutput()
@@ -433,27 +393,15 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 	}
 
 
-	private func configureVideoInput() {
+	private func configureVideoInput(isFront: Bool) {
 		precondition(!Thread.isMainThread)
 		if videoDeviceInput == nil {
 			do {
-				self.hasFlash = false
-				self.hasTorch = false
-				if let videoDevice = findMatchingVideoDevice() {
+				if let videoDevice = findMatchingVideoDevice(isFront: isFront) {
 					let videoDeviceInput = try AVCaptureDeviceInput(device: videoDevice)
 					if session.canAddInput(videoDeviceInput) {
 						session.addInput(videoDeviceInput)
 						self.videoDeviceInput = videoDeviceInput
-						self.hasFlash = videoDevice.isFlashAvailable
-						if self.hasZoom {
-							self.trySetZoomLevel()
-						}
-						self.hasTorch = videoDevice.hasTorch
-						if self.hasTorch {
-							queue.async {
-								self.trySwitchTorch()
-							}
-						}
 						addDeviceInputObservers()
 						DispatchQueue.main.async {
 							self.videoPreviewLayer.connection?.videoOrientation = ORIENTATION
@@ -474,32 +422,39 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 	}
 
 
-	private func trySetZoomLevel() {
+	private func trySetZoomLevel(_ zoomLevel: CGFloat) {
+		precondition(!Thread.isMainThread)
+		guard let videoDeviceInput = videoDeviceInput, hasZoom else { return }
 		do {
 			try videoDeviceInput.device.lockForConfiguration()
 			videoDeviceInput.device.videoZoomFactor = zoomLevel
 			videoDeviceInput.device.unlockForConfiguration()
+			DispatchQueue.main.async {
+				self.delegate?.cameraViewDidChangeZoomLevel(self)
+			}
 		} catch let error {
 			print("CameraView error: \(error)")
 		}
 	}
 
 
-	private func trySwitchTorch() {
-		// Additional protection here: trySwitchTorch() is called asynchronously during reconfiguration of the input device, because otherwise it flashes and turns itself off for some reason.
-		if let videoDeviceInput = videoDeviceInput {
-			do {
-				try videoDeviceInput.device.lockForConfiguration()
-				videoDeviceInput.device.torchMode = isTorchOn ? .on : .off
-				videoDeviceInput.device.unlockForConfiguration()
-			} catch let error {
-				print("CameraView error: \(error)")
+	private func trySwitchTorch(_ on: Bool) {
+		precondition(!Thread.isMainThread)
+		guard let videoDeviceInput = videoDeviceInput, hasTorch else { return }
+		do {
+			try videoDeviceInput.device.lockForConfiguration()
+			videoDeviceInput.device.torchMode = on ? .on : .off
+			videoDeviceInput.device.unlockForConfiguration()
+			DispatchQueue.main.async {
+				self.delegate?.cameraViewDidSwitchTorch(self)
 			}
+		} catch let error {
+			print("CameraView error: \(error)")
 		}
 	}
 
 
-	private func findMatchingVideoDevice() -> AVCaptureDevice? {
+	private func findMatchingVideoDevice(isFront: Bool) -> AVCaptureDevice? {
 		let type: AVCaptureDevice.DeviceType = isFront ? .builtInWideAngleCamera : .builtInDualCamera
 		let position: AVCaptureDevice.Position = isFront ? .front : .back
 
@@ -520,6 +475,10 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 
 	private func configureAudioInput() {
 		precondition(!Thread.isMainThread)
+		if !outputMode.isVideo, let audioDeviceInput = audioDeviceInput {
+			session.removeInput(audioDeviceInput)
+			self.audioDeviceInput = nil
+		}
 		if outputMode.isVideo && audioDeviceInput == nil {
 			do {
 				let audioDevice = AVCaptureDevice.default(for: .audio)
@@ -534,15 +493,15 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 				print("CameraView error: Could not create audio device input: \(error)")
 			}
 		}
-		else if !outputMode.isVideo, let audioDeviceInput = audioDeviceInput {
-			session.removeInput(audioDeviceInput)
-			self.audioDeviceInput = nil
-		}
 	}
 
 
 	private func configureVideoOutput() {
 		precondition(!Thread.isMainThread)
+		if !outputMode.isVideo, let videoOutput = videoOutput {
+			session.removeOutput(videoOutput)
+			self.videoOutput = nil
+		}
 		if outputMode.isVideo && videoOutput == nil {
 			let videoOutput = AVCaptureMovieFileOutput()
 			if session.canAddOutput(videoOutput) {
@@ -562,15 +521,15 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 				self.videoOutput = videoOutput
 			}
 		}
-		else if !outputMode.isVideo, let videoOutput = videoOutput {
-			session.removeOutput(videoOutput)
-			self.videoOutput = nil
-		}
 	}
 
 
 	private func configurePhotoOutput() {
 		precondition(!Thread.isMainThread)
+		if !outputMode.isPhoto, let photoOutput = photoOutput {
+			session.removeOutput(photoOutput)
+			self.photoOutput = nil
+		}
 		if outputMode.isPhoto && photoOutput == nil {
 			let photoOutput = AVCapturePhotoOutput()
 			if session.canAddOutput(photoOutput) {
@@ -584,10 +543,6 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 				configurationFailed(message: "Could not add photo output to the session")
 				return
 			}
-		}
-		else if !outputMode.isPhoto, let photoOutput = photoOutput {
-			session.removeOutput(photoOutput)
-			self.photoOutput = nil
 		}
 	}
 
