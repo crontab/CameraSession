@@ -156,16 +156,19 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 	}
 
 
+	open var maxRecordedDuration: TimeInterval = 30
+
 	open var isRecording: Bool { videoOutput?.isRecording ?? false }
 
 
-	open func initialize(delegate: CameraViewDelegate, outputMode: OutputMode, isFront: Bool, sessionPreset: AVCaptureSession.Preset = .high) {
+	open func initialize(delegate: CameraViewDelegate, outputMode: OutputMode, isFront: Bool, sessionPreset: AVCaptureSession.Preset = .high, maxRecordedDuration: TimeInterval = 30) {
 		precondition(status == .undefined)
 		precondition(Thread.isMainThread)
 
 		self.delegate = delegate
 		self.outputMode = outputMode
 		self.sessionPreset = sessionPreset
+		self.maxRecordedDuration = maxRecordedDuration
 
 		if videoPreviewLayer.session == nil {
 			videoPreviewLayer.session = session
@@ -245,6 +248,7 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 			if UIDevice.current.isMultitaskingSupported {
 				self.backgroundRecordingID = UIApplication.shared.beginBackgroundTask(expirationHandler: nil)
 			}
+			videoOutput.maxRecordedDuration = CMTime(seconds: self.maxRecordedDuration, preferredTimescale: 1)
 			videoOutput.startRecording(to: fileURL, recordingDelegate: self)
 		}
 	}
