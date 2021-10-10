@@ -175,10 +175,19 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 			videoPreviewLayer.videoGravity = .resizeAspectFill
 		}
 
-		checkAuthorization() // runs on main thread, blocks the session thread if UI is involved
-
-		queue.async {
-			self.configureSession(isFront: isFront)
+		checkAuthorization(forAudio: false) { [self] videoGranted in
+			if videoGranted && outputMode.isVideo {
+				checkAuthorization(forAudio: true) { audioGranted in
+					queue.async {
+						configureSession(isFront: isFront)
+					}
+				}
+			}
+			else {
+				queue.async {
+					configureSession(isFront: isFront)
+				}
+			}
 		}
 	}
 
@@ -323,22 +332,24 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 	// - - -  SETUP
 
 
-	private func checkAuthorization() {
-		switch AVCaptureDevice.authorizationStatus(for: .video) {
-		case .authorized:
-			break
+	private func checkAuthorization(forAudio: Bool, completion: @escaping (Bool) -> Void) {
+		switch AVCaptureDevice.authorizationStatus(for: forAudio ? .audio : .video) {
+			case .authorized:
+				completion(true)
 
-		case .notDetermined:
-			queue.suspend()
-			AVCaptureDevice.requestAccess(for: .video, completionHandler: { granted in
-				if !granted {
-					self.status = .notAuthorized
-				}
-				self.queue.resume()
-			})
+			case .notDetermined:
+				queue.suspend()
+				AVCaptureDevice.requestAccess(for: forAudio ? .audio : .video, completionHandler: { granted in
+					if !granted {
+						self.status = .notAuthorized
+					}
+					self.queue.resume()
+					completion(granted)
+				})
 
-		default:
-			status = .notAuthorized
+			default:
+				completion(false)
+				status = .notAuthorized
 		}
 	}
 
@@ -483,10 +494,9 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 			session.removeInput(audioDeviceInput)
 			self.audioDeviceInput = nil
 		}
-		if outputMode.isVideo && audioDeviceInput == nil {
+		if outputMode.isVideo, audioDeviceInput == nil, let audioDevice = AVCaptureDevice.default(for: .audio) {
 			do {
-				let audioDevice = AVCaptureDevice.default(for: .audio)
-				let audioDeviceInput = try AVCaptureDeviceInput(device: audioDevice!)
+				let audioDeviceInput = try AVCaptureDeviceInput(device: audioDevice)
 				if session.canAddInput(audioDeviceInput) {
 					session.addInput(audioDeviceInput)
 					self.audioDeviceInput = audioDeviceInput
@@ -514,6 +524,9 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 					connection.videoOrientation = ORIENTATION
 					if connection.isVideoStabilizationSupported {
 						connection.preferredVideoStabilizationMode = .auto
+					}
+					if connection.isVideoMirroringSupported {
+						connection.isVideoMirrored = isFront
 					}
 					if videoOutput.availableVideoCodecTypes.contains(VIDEO_CODEC_TYPE) {
 						videoOutput.setOutputSettings([AVVideoCodecKey: VIDEO_CODEC_TYPE], for: connection)
