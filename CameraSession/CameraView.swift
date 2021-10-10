@@ -4,7 +4,7 @@
 //  Created by Hovik Melikyan on 26/05/2019.
 //  Copyright © 2019 Hovik Melikyan. All rights reserved.
 //
-//  Version 1.1 (2021-10-10)
+//  Version 1.2 (2021-10-10)
 //
 
 
@@ -195,6 +195,7 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 
 
 	deinit {
+		self.session.stopRunning()
 		removeAllObservers()
 		#if DEBUG
 		print("CameraSession: deinit")
