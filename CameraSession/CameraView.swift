@@ -4,6 +4,8 @@
 //  Created by Hovik Melikyan on 26/05/2019.
 //  Copyright © 2019 Hovik Melikyan. All rights reserved.
 //
+//  Version 1.1 (2021-10-10)
+//
 
 
 import UIKit
@@ -656,8 +658,8 @@ open class CameraView: UIView, AVCapturePhotoCaptureDelegate, AVCaptureFileOutpu
 
 	@objc func sessionWasInterrupted(notification: NSNotification) {
 		if let userInfoValue = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as AnyObject?,
-			let reasonIntegerValue = userInfoValue.integerValue,
-			let reason = AVCaptureSession.InterruptionReason(rawValue: reasonIntegerValue) {
+		   let reasonIntegerValue = userInfoValue.integerValue,
+		   let reason = AVCaptureSession.InterruptionReason(rawValue: reasonIntegerValue) {
 			print("CameraView error: Capture session was interrupted with reason \(reason.rawValue)")
 			delegate?.cameraView(self, wasInterruptedWithReason: reason)
 		}
